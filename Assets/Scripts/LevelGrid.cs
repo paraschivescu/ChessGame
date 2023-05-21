@@ -8,39 +8,36 @@ public class LevelGrid : MonoBehaviour
 
     private void Start()
     {
+        //AddTilesToDictionary    
         _tiles = new Dictionary<Vector2, Tile>();
-        IterateTiles();
-    }
-
-    private void IterateTiles()
-    {
         int tileCount = transform.childCount;
-
         for (int i = 0; i < tileCount; i++)
         {
             Transform tileTransform = transform.GetChild(i);
             Tile tile = tileTransform.GetComponent<Tile>();
             _tiles[new Vector2(tile.coords.x, tile.coords.y)] = tile;
-
         }
-
-/*        foreach (var kvp in _tiles)
-        {
-            Debug.Log($"Key: {kvp.Key}, Value: {kvp.Value}");
-        }*/
 
     }
 
+    public Tile GetTileAtPosition(Vector2 pos)
+    {
+        if (_tiles.TryGetValue(pos, out var tile)) return tile;
+        return null;
+    }
+
+    public bool checkIfTileAtCoords(Vector2 coords)
+    {
+        foreach (var kvp in _tiles)
+        {
+            if (coords == kvp.Key)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
 
 }
 
-/*
-_tiles[new Vector2(x, y)] = spawnedTile;
-
-public Tile GetTileAtPosition(Vector2 pos)
-{
-    if (_tiles.TryGetValue(pos, out var tile)) return tile;
-    return null;
-}
-*/

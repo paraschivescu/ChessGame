@@ -26,4 +26,9 @@ public class Tile : MonoBehaviour
         tileColor.a = 1f;
         GetComponent<SpriteRenderer>().color = tileColor;
     }
+
+    private void OnMouseDown()
+    {
+        EventManager.RaiseTileClickedEvent(this);
+    }
 }

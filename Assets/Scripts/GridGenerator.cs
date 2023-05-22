@@ -13,7 +13,7 @@ public class MyScriptEditor : Editor
 
         GridGenerator myScript = (GridGenerator)target;
 
-        if (GUILayout.Button("My Button"))
+        if (GUILayout.Button("Generate Grid"))
         {
             myScript.GenerateGridClicked();
         }
@@ -42,7 +42,7 @@ public class GridGenerator : MonoBehaviour
             {
                 var spawnedTile = Instantiate(_tilePrefab, new Vector3(x, y), Quaternion.identity, GridParent);
                 spawnedTile.name = $"Tile {x} {y}";
-                spawnedTile.coords = new Vector2(x, y);
+                spawnedTile.coords = new Vector2Int(x, y);
 
                 var isOffset = (x % 2 == 0 && y % 2 != 0) || (x % 2 != 0 && y % 2 == 0);
                 spawnedTile.Init(isOffset);

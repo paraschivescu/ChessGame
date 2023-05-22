@@ -4,29 +4,30 @@ using UnityEngine;
 
 public class LevelGrid : MonoBehaviour
 {
-    public Dictionary<Vector2, Tile> _tiles;
+    public Dictionary<Vector2Int, Tile> _tiles;
 
     private void Start()
     {
         //AddTilesToDictionary    
-        _tiles = new Dictionary<Vector2, Tile>();
+        _tiles = new Dictionary<Vector2Int, Tile>();
         int tileCount = transform.childCount;
         for (int i = 0; i < tileCount; i++)
         {
             Transform tileTransform = transform.GetChild(i);
             Tile tile = tileTransform.GetComponent<Tile>();
-            _tiles[new Vector2(tile.coords.x, tile.coords.y)] = tile;
+            _tiles[new Vector2Int(tile.coords.x, tile.coords.y)] = tile;
         }
 
     }
 
-    public Tile GetTileAtPosition(Vector2 pos)
+    public Tile GetTileAtPosition(Vector2Int pos)
     {
         if (_tiles.TryGetValue(pos, out var tile)) return tile;
+        print("no tile");
         return null;
     }
 
-    public bool checkIfTileAtCoords(Vector2 coords)
+    public bool checkIfTileAtCoords(Vector2Int coords)
     {
         foreach (var kvp in _tiles)
         {

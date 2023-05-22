@@ -15,22 +15,23 @@ public class GameController : MonoBehaviour
     private void OnTileClicked(Tile tile)
     {
         Debug.Log("Tile clicked: " + tile.name);
-        MovePieceTo(_chessPiece, tile.coords);
-    }
 
-    void MovePieceTo(ChessPiece cp, Vector2 newCoords)
-    {
-        if (_levelGridReference.checkIfTileAtCoords(newCoords))
-        {
-            cp._positionCoordsCurrent = newCoords;
-            Debug.Log(newCoords);
-        }
-        else
-        {
-            Debug.Log("No tile at new coords");
-        }
-        cp.transform.position = new Vector3(cp._positionCoordsCurrent.x, cp._positionCoordsCurrent.y, transform.position.z);
-    }
+        // get tiles that are valid destinations based on the chess piece's list of relative destinations (cp.GetValidMoves())
 
+        // get the cp's current tile's coords
+        Vector2Int cpCurrentCoords = _chessPiece._positionCoordsCurrent;
+        List<Vector2Int> cpRelativeValidMoves = _chessPiece.GetValidMoves();
+        List<Tile> cpAbsoluteValidMoves = new List<Tile>();
+        foreach (Vector2Int coords in cpRelativeValidMoves) {
+            cpAbsoluteValidMoves.Add(_levelGridReference.GetTileAtPosition(coords + cpCurrentCoords));
+        }
+
+        if (cpAbsoluteValidMoves.Contains(tile)) {
+            _chessPiece._positionCoordsCurrent = tile.coords;
+            Debug.Log(tile.coords);
+            _chessPiece.transform.position = new Vector3(_chessPiece._positionCoordsCurrent.x, _chessPiece._positionCoordsCurrent.y, transform.position.z);
+        }
+
+    }
 
 }

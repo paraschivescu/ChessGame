@@ -23,7 +23,6 @@ public class LevelGrid : MonoBehaviour
     public Tile GetTileAtPosition(Vector2Int pos)
     {
         if (_tiles.TryGetValue(pos, out var tile)) return tile;
-        print("no tile");
         return null;
     }
 

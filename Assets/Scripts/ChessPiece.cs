@@ -12,15 +12,21 @@ public enum ChessPieceType
     King
 }
 
+public enum ChessPieceFaction
+{
+    White,
+    Zombie
+}
+
 public class ChessPiece : MonoBehaviour
 {
-    [SerializeField] public Vector2Int _positionCoordsCurrent;
-    [SerializeField] private Vector2Int _positionCoordsStart;
+    public Vector2Int _positionCoordsCurrent;
     public ChessPieceType type;
+    public ChessPieceFaction faction;
 
     void Start()
     {
-        _positionCoordsCurrent = _positionCoordsStart;
+
     }
 
    
@@ -29,15 +35,12 @@ public class ChessPiece : MonoBehaviour
         List<Tile> AddValidMoves(List<Vector2Int> relativeValidMoves, LevelGrid _levelGridReference, bool continuousLineChessPiece)
         {
             List<Tile> moves = new List<Tile>();
-            foreach (Vector2Int coords in relativeValidMoves)
-            {
+            foreach (Vector2Int coords in relativeValidMoves) {
                 Tile t = _levelGridReference.GetTileAtPosition(coords + _positionCoordsCurrent);
-                if (t)
-                {
+                if (t) {
                     moves.Add(t);
                 }
-                else
-                {
+                else {
                     if (continuousLineChessPiece) return moves;
                 }
             }
@@ -96,12 +99,10 @@ public class ChessPiece : MonoBehaviour
             break;
         }
 
-        
-
-
         // need to remove tiles across gaps for every cp that can move in a line, other than Knights: Queen, Rooks, Bishops
 
         return absoluteValidMoves;
     }
+
 
 }

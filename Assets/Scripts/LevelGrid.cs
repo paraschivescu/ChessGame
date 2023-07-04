@@ -15,7 +15,7 @@ public class LevelGrid : MonoBehaviour
         {
             Transform tileTransform = transform.GetChild(i);
             Tile tile = tileTransform.GetComponent<Tile>();
-            _tiles[new Vector2Int(tile.coords.x, tile.coords.y)] = tile;
+            _tiles[new Vector2Int(tile._tileCoords.x, tile._tileCoords.y)] = tile;
         }
 
     }
@@ -26,7 +26,7 @@ public class LevelGrid : MonoBehaviour
         return null;
     }
 
-    public bool checkIfTileAtCoords(Vector2Int coords)
+    public bool CheckIfTileAtCoords(Vector2Int coords)
     {
         foreach (var kvp in _tiles)
         {

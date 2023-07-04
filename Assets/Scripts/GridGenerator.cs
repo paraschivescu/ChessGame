@@ -40,7 +40,7 @@ public class GridGenerator : MonoBehaviour
         Debug.Log("Aligning chess pieces to grid...");
 
         List<ChessPiece> _cpList = _gameController.GetListOfChessPieces();
-        List<Tile> _tileList = new List<Tile>();
+        List<Tile> _tileList = new();
 
         // populate tile list
         for (int i = 0; i < _gridParent.transform.childCount; i++)
@@ -52,7 +52,7 @@ public class GridGenerator : MonoBehaviour
         // iterate all chess pieces, find nearest tile for each of them 
         foreach (ChessPiece cp in _cpList)
         {
-            GameObject go = new GameObject("ClosestTile"); // needed to fix "You are trying to create a MonoBehaviour using the 'new' keyword. This is not allowed."
+            GameObject go = new("ClosestTile"); // needed to fix "You are trying to create a MonoBehaviour using the 'new' keyword. This is not allowed."
             Tile closestTile = go.AddComponent<Tile>();
             float lowestDistance = Mathf.Infinity;
 
@@ -65,7 +65,9 @@ public class GridGenerator : MonoBehaviour
             }
             // change the piece's transform & coords to match those of the tile
             cp.transform.position = closestTile.transform.position;
-            cp.positionCoordsCurrent = closestTile.coords;
+            cp.positionCoordsCurrent = closestTile._tileCoords;
+            // set chess piece on this tile
+            closestTile._chessPiece = cp;
             PrefabUtility.RecordPrefabInstancePropertyModifications(cp);
             DestroyImmediate(go);
         }        
@@ -80,7 +82,7 @@ public class GridGenerator : MonoBehaviour
             {
                 var spawnedTile = Instantiate(_tilePrefab, new Vector3(x, y), Quaternion.identity, _gridParent);
                 spawnedTile.name = $"Tile {x} {y}";
-                spawnedTile.coords = new Vector2Int(x, y);
+                spawnedTile._tileCoords = new Vector2Int(x, y);
 
                 var isOffset = (x % 2 == 0 && y % 2 != 0) || (x % 2 != 0 && y % 2 == 0);
                 spawnedTile.Init(isOffset);

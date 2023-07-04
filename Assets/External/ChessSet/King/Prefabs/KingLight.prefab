@@ -97,5 +97,5 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _positionCoordsCurrent: {x: 0, y: 0}
-  _positionCoordsStart: {x: 0, y: 0}
   type: 5
+  faction: 0

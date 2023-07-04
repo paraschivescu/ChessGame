@@ -52,7 +52,7 @@ public class GridGenerator : MonoBehaviour
         // iterate all chess pieces, find nearest tile for each of them 
         foreach (ChessPiece cp in _cpList)
         {
-            GameObject go = new GameObject("ClosestTile"); // needed to fix "You are trying to create a MonoBehaviour using the ‘new’ keyword. This is not allowed."
+            GameObject go = new GameObject("ClosestTile"); // needed to fix "You are trying to create a MonoBehaviour using the 'new' keyword. This is not allowed."
             Tile closestTile = go.AddComponent<Tile>();
             float lowestDistance = Mathf.Infinity;
 
@@ -65,12 +65,10 @@ public class GridGenerator : MonoBehaviour
             }
             // change the piece's transform & coords to match those of the tile
             cp.transform.position = closestTile.transform.position;
-            cp._positionCoordsCurrent = closestTile.coords;
+            cp.positionCoordsCurrent = closestTile.coords;
             PrefabUtility.RecordPrefabInstancePropertyModifications(cp);
-        }
-
-
-        
+            DestroyImmediate(go);
+        }        
     } 
 
     public void GenerateGrid()

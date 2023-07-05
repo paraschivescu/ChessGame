@@ -6,6 +6,7 @@ public class LevelGrid : MonoBehaviour
 {
     public Dictionary<Vector2Int, Tile> dictionaryCoordsTiles;
     public List<Tile> tiles;
+    public List<ChessPiece> chessPiecesInPlay;
 
     private void Start()
     {
@@ -18,6 +19,9 @@ public class LevelGrid : MonoBehaviour
             Tile tile = tileTransform.GetComponent<Tile>();
             dictionaryCoordsTiles[new Vector2Int(tile._tileCoords.x, tile._tileCoords.y)] = tile;
             tiles.Add(tile);
+            if (tile._chessPiece) {
+                chessPiecesInPlay.Add(tile._chessPiece);
+            }
         }
 
     }

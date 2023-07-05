@@ -39,7 +39,7 @@ public class GridGenerator : MonoBehaviour
     { 
         Debug.Log("Aligning chess pieces to grid...");
 
-        List<ChessPiece> _cpList = _gameController.GetListOfChessPieces();
+        List<ChessPiece> _cpList = _gameController._boardState.chessPiecesInPlay;
         List<Tile> _tileList = new();
 
         // populate tile list

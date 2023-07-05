@@ -5,8 +5,8 @@ using UnityEditor;
 
 public class GameController : MonoBehaviour
 {
+    public LevelGrid _boardState;
     [SerializeField] private ChessPiece _chessPiece;
-    [SerializeField] private LevelGrid _boardState;
     [SerializeField] private GameStates _currentGameState;
     [SerializeField] private GameObject _chessPiecesParent;
     [SerializeField] private List<ChessPiece> _chessPiecesInPlay;
@@ -26,25 +26,10 @@ public class GameController : MonoBehaviour
         
         // register events
         EventManager.TileClicked += OnTileClicked;
-
-        // PopulateListOfChessPiecesInPlay
-        _chessPiecesInPlay = GetListOfChessPieces();
     }
-
-    public List<ChessPiece> GetListOfChessPieces() 
-    {
-        List<ChessPiece> _cpList = new();
-        for (int i = 0; i < _chessPiecesParent.transform.childCount; i++)
-        {
-            ChessPiece cp = _chessPiecesParent.transform.GetChild(i).GetComponent<ChessPiece>();
-            _cpList.Add(cp);
-        }
-        return _cpList;
-    }
-    
 
     private ChessPiece GetChessPieceOnTile(Tile t) {
-        foreach (ChessPiece cp in _chessPiecesInPlay)
+        foreach (ChessPiece cp in _boardState.chessPiecesInPlay)
         {
             if (cp.positionCoordsCurrent == t._tileCoords)
             {
@@ -86,7 +71,7 @@ public class GameController : MonoBehaviour
                     HighlightValidMoves(_chessPiece, true); 
                 } else if (_otherChessPiece.faction == ChessPieceFaction.Zombie) {
                     Debug.Log("zombie killed");
-                    _chessPiecesInPlay.Remove(_otherChessPiece);
+                    _boardState.chessPiecesInPlay.Remove(_otherChessPiece);
                     _otherChessPiece.gameObject.SetActive(false);
                 }
             }
@@ -105,21 +90,22 @@ public class GameController : MonoBehaviour
     private void PlayCPUTurn()
     {
         LevelGrid initialBoardState = _boardState;
-
-        List<ChessPiece> ownChessPiecesInPlay = new();
-        foreach (Tile t in _boardState.tiles) 
-        {
-
-        }
-        
-        foreach (ChessPiece cp in _chessPiecesInPlay) {
-            if (cp.faction == ChessPieceFaction.Zombie) {
-                ownChessPiecesInPlay.Add(cp);
-            }
-        }
+        List<ChessPiece> initialChessPiecesInPlay = _boardState.chessPiecesInPlay;
 
         // WIP select one of the own cps in play
-        ChessPiece chessPieceToMove = ownChessPiecesInPlay[0];
+        ChessPiece SelectOwnChessPieceToMove() {
+            foreach (ChessPiece cp in initialChessPiecesInPlay)
+            {
+                if (cp.faction == ChessPieceFaction.Zombie)
+                {
+                    return cp;
+                }
+            }
+            Debug.Log("No more chess pieces in faction. ");
+            return null;
+        }
+        
+        ChessPiece chessPieceToMove = SelectOwnChessPieceToMove();
 
         //////// WIP select a move to play
         List<Tile> cpValidDestTiles = GetAbsoluteDestinationTiles(chessPieceToMove.type, chessPieceToMove._currentTile, true);

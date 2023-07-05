@@ -68,6 +68,8 @@ public class GridGenerator : MonoBehaviour
             cp.positionCoordsCurrent = closestTile._tileCoords;
             // set chess piece on this tile
             closestTile._chessPiece = cp;
+            // set tile that the cp is on
+            cp._currentTile = closestTile;
             PrefabUtility.RecordPrefabInstancePropertyModifications(cp);
             DestroyImmediate(go);
         }        

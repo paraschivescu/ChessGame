@@ -6,7 +6,7 @@ using UnityEditor;
 public class GameController : MonoBehaviour
 {
     [SerializeField] private ChessPiece _chessPiece;
-    [SerializeField] private LevelGrid _levelGridReference;
+    [SerializeField] private LevelGrid _boardState;
     [SerializeField] private GameStates _currentGameState;
     [SerializeField] private GameObject _chessPiecesParent;
     [SerializeField] private List<ChessPiece> _chessPiecesInPlay;
@@ -59,7 +59,7 @@ public class GameController : MonoBehaviour
         Debug.Log("tile clicked");
         void HighlightValidMoves(ChessPiece cp, bool onOff)
         {
-            List<Tile> cpValidMoves = GetAbsoluteValidMoves(cp);
+            List<Tile> cpValidMoves = GetAbsoluteDestinationTiles(cp.type, cp._currentTile, true);
             foreach (Tile t in cpValidMoves) {
                 if (t) 
                     t.HighlightTile(onOff);
@@ -90,10 +90,10 @@ public class GameController : MonoBehaviour
                     _otherChessPiece.gameObject.SetActive(false);
                 }
             }
-            List<Tile> cpValidMoves = GetAbsoluteValidMoves(_chessPiece);
+            List<Tile> cpValidMoves = GetAbsoluteDestinationTiles(_chessPiece.type, _chessPiece._currentTile, true);
             if (cpValidMoves.Contains(tile)) {
                 HighlightValidMoves(_chessPiece, false);
-                MoveChessPieceToTile(_chessPiece, tile);
+                PerformMove(_chessPiece, tile);
 
                 // end turn
                 _currentGameState = GameStates.CPUTurn;
@@ -102,15 +102,16 @@ public class GameController : MonoBehaviour
         }
     }
     
-    private void MoveChessPieceToTile(ChessPiece cp, Tile t)
-    {
-        cp.positionCoordsCurrent = t._tileCoords;
-        cp.transform.position = new Vector3(t.transform.position.x, t.transform.position.y, transform.position.z);
-    }
-
     private void PlayCPUTurn()
     {
+        LevelGrid initialBoardState = _boardState;
+
         List<ChessPiece> ownChessPiecesInPlay = new();
+        foreach (Tile t in _boardState.tiles) 
+        {
+
+        }
+        
         foreach (ChessPiece cp in _chessPiecesInPlay) {
             if (cp.faction == ChessPieceFaction.Zombie) {
                 ownChessPiecesInPlay.Add(cp);
@@ -120,41 +121,82 @@ public class GameController : MonoBehaviour
         // WIP select one of the own cps in play
         ChessPiece chessPieceToMove = ownChessPiecesInPlay[0];
 
-        // WIP select a move to play
-        List<Tile> cpValidMoves = GetAbsoluteValidMoves(chessPieceToMove);
-        
-        //_movesConsidered;
+        //////// WIP select a move to play
+        List<Tile> cpValidDestTiles = GetAbsoluteDestinationTiles(chessPieceToMove.type, chessPieceToMove._currentTile, true);
 
-        // move it to a random valid tile
-        MoveChessPieceToTile(chessPieceToMove, cpValidMoves[Random.Range(0, cpValidMoves.Count)]);
+        List<Move> listOfMoves = new();
+        foreach (Tile t in cpValidDestTiles)
+        {
+            Move mv = new() {
+                _chessPieceToMove = chessPieceToMove,
+                _tileDestination = t
+            };
 
+            List<Tile> overwatchedTilesOnNextMove = GetAbsoluteDestinationTiles(chessPieceToMove.type, t, false);
+            foreach (Tile overwatchedTile in overwatchedTilesOnNextMove) {
+                mv._scoreOfMove += overwatchedTile._overwatchScore;
+            }
+            
+            listOfMoves.Add(mv);      
+        }
+        // sort list of moves in descending order
+        listOfMoves.Sort((x, y) => y._scoreOfMove.CompareTo(x._scoreOfMove));
+
+        // perform the move with the highest score
+        PerformMove(listOfMoves[0]);
+
+        // end turn
         _currentGameState = GameStates.SelectChessPieceToMove;
     }
 
-    private List<Tile> GetAbsoluteValidMoves(ChessPiece cp)
+    private void PerformMove(ChessPiece cp, Tile t)
     {
-        List<Tile> CheckValidMoves(List<Vector2Int> relativeValidMoves)
+        cp.positionCoordsCurrent = t._tileCoords;
+        cp.transform.position = new Vector3(t.transform.position.x, t.transform.position.y, transform.position.z);
+        cp._currentTile = t;
+    }
+
+    private void PerformMove(Move mv) 
+    {
+        mv._chessPieceToMove.positionCoordsCurrent = mv._tileDestination._tileCoords;
+        mv._chessPieceToMove.transform.position = new Vector3(mv._tileDestination.transform.position.x, mv._tileDestination.transform.position.y, transform.position.z);
+        mv._chessPieceToMove._currentTile = mv._tileDestination;
+    }
+
+    private List<Tile> GetAbsoluteDestinationTiles(ChessPieceType cpType, Tile startingTile, bool destinationsMustBeValid)
+    {
+
+        List<Tile> CheckValidDestinations(List<Vector2Int> relativeValidDestinations)
         {
             List<Tile> moves = new();
-            foreach (Vector2Int move in relativeValidMoves)
+            foreach (Vector2Int newCoords in relativeValidDestinations)
             {
-                Tile t = _levelGridReference.GetTileAtPosition(move + cp.positionCoordsCurrent);
-                if (t && GetChessPieceOnTile(t))
+                Tile t = _boardState.GetTileAtPosition(newCoords + startingTile._tileCoords);
+
+                if (!t) return moves;
+                if (GetChessPieceOnTile(t) && destinationsMustBeValid)
                 {
-                    return moves;
-                }
-                else if (t)
-                {
+                    if (GetChessPieceOnTile(t).faction == ChessPieceFaction.White)
+                    {
+                        return moves;
+                    }
+                    else
+                    { // zombie
+                        moves.Add(t);
+                        return moves;
+                    }
+                } else {
                     moves.Add(t);
                 }
+                
             }
-
             return moves;
         }
 
-        Tile CheckValidMove(Vector2Int move) 
+        Tile CheckValidDestination(Vector2Int move) 
         {
-            Tile t = _levelGridReference.GetTileAtPosition(move + cp.positionCoordsCurrent);
+            Tile t = _boardState.GetTileAtPosition(move + startingTile._tileCoords);
+            if (!destinationsMustBeValid) return t;
             if (t && !GetChessPieceOnTile(t)) return t;
             else return null;
         }
@@ -166,11 +208,11 @@ public class GameController : MonoBehaviour
         List<Vector2Int> relativeValidMovesDiagonalNE = new(), relativeValidMovesDiagonalSE = new(), relativeValidMovesDiagonalSW = new(), relativeValidMovesDiagonalNW = new();
         List<Tile> absoluteValidMoves = new();
 
-        switch (cp.type)
+        switch (cpType)
         {
             case (ChessPieceType.Pawn):
                 relativeValidMoves.Add(new Vector2Int(0, 1));
-                foreach (Vector2Int move in relativeValidMoves) absoluteValidMoves.Add(CheckValidMove(move));
+                foreach (Vector2Int move in relativeValidMoves) absoluteValidMoves.Add(CheckValidDestination(move));
             break;
 
             case (ChessPieceType.Knight):
@@ -182,7 +224,7 @@ public class GameController : MonoBehaviour
                 relativeValidMoves.Add(new Vector2Int(-2, 1));
                 relativeValidMoves.Add(new Vector2Int(-2, -1));
                 relativeValidMoves.Add(new Vector2Int(-1, -2));
-                foreach (Vector2Int move in relativeValidMoves) absoluteValidMoves.Add(CheckValidMove(move));
+                foreach (Vector2Int move in relativeValidMoves) absoluteValidMoves.Add(CheckValidDestination(move));
             break;
 
             case (ChessPieceType.King):
@@ -194,7 +236,7 @@ public class GameController : MonoBehaviour
                 relativeValidMoves.Add(new Vector2Int(1, 1));
                 relativeValidMoves.Add(new Vector2Int(1, -1));
                 relativeValidMoves.Add(new Vector2Int(-1, 1));
-                foreach (Vector2Int move in relativeValidMoves) absoluteValidMoves.Add(CheckValidMove(move));
+                foreach (Vector2Int move in relativeValidMoves) absoluteValidMoves.Add(CheckValidDestination(move));
             break;
 
             case (ChessPieceType.Rook):
@@ -205,10 +247,10 @@ public class GameController : MonoBehaviour
                     relativeValidMovesRight.Add(new Vector2Int(i, 0));
                     relativeValidMovesLeft.Add(new Vector2Int(-i, 0));
                 }
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesUp));
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesDown));
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesRight));
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesLeft));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesUp));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesDown));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesRight));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesLeft));
             break;
 
             case (ChessPieceType.Bishop):
@@ -219,10 +261,10 @@ public class GameController : MonoBehaviour
                     relativeValidMovesDiagonalSW.Add(new Vector2Int(-i, -i));
                     relativeValidMovesDiagonalNW.Add(new Vector2Int(-i, i));
                 }
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesDiagonalNE));
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesDiagonalSE));
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesDiagonalSW));
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesDiagonalNW));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesDiagonalNE));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesDiagonalSE));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesDiagonalSW));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesDiagonalNW));
             break;
 
             case (ChessPieceType.Queen):
@@ -237,14 +279,14 @@ public class GameController : MonoBehaviour
                     relativeValidMovesDiagonalSW.Add(new Vector2Int(-i, -i));
                     relativeValidMovesDiagonalNW.Add(new Vector2Int(-i, i));
                 }
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesUp));
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesDown));
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesLeft));
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesRight));
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesDiagonalNE));
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesDiagonalSE));
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesDiagonalSW));
-                absoluteValidMoves.AddRange(CheckValidMoves(relativeValidMovesDiagonalNW));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesUp));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesDown));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesLeft));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesRight));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesDiagonalNE));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesDiagonalSE));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesDiagonalSW));
+                absoluteValidMoves.AddRange(CheckValidDestinations(relativeValidMovesDiagonalNW));
             break;
             default:
                 Debug.Log("Trying to get valid moves of invalid chess piece type.");

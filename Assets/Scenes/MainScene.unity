@@ -1530,6 +1530,7 @@ MonoBehaviour:
   type: 1
   faction: 0
   _captureScore: 0
+  _currentTile: {fileID: 0}
 --- !u!4 &93788042 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4967576429096158, guid: 85ad2c556fdbd5747ac7f5f67f10e59b, type: 3}
@@ -5018,6 +5019,7 @@ MonoBehaviour:
   type: 0
   faction: 1
   _captureScore: 0
+  _currentTile: {fileID: 0}
 --- !u!1 &493791909
 GameObject:
   m_ObjectHideFlags: 0
@@ -6349,6 +6351,7 @@ MonoBehaviour:
   type: 5
   faction: 1
   _captureScore: 0
+  _currentTile: {fileID: 0}
 --- !u!1 &587105272
 GameObject:
   m_ObjectHideFlags: 0
@@ -8911,6 +8914,7 @@ MonoBehaviour:
   type: 4
   faction: 0
   _captureScore: 0
+  _currentTile: {fileID: 0}
 --- !u!114 &744461506 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: -2848197993451594415, guid: be3573ba2ba53ea4f8979e64874c493d, type: 3}
@@ -9867,6 +9871,7 @@ MonoBehaviour:
   type: 0
   faction: 0
   _captureScore: 0
+  _currentTile: {fileID: 0}
 --- !u!4 &789420518 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4010933918866702, guid: 391882f14be491c40962add653844907, type: 3}
@@ -20308,7 +20313,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _chessPiece: {fileID: 789420515}
-  _levelGridReference: {fileID: 739810201}
+  _boardState: {fileID: 739810201}
   _currentGameState: 0
   _chessPiecesParent: {fileID: 653360845}
   _chessPiecesInPlay: []

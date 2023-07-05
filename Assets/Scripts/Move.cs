@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class Move
 {
-    private ChessPiece _chessPieceToMove;
-    private Tile _tileDestination;
-    private int _scoreOfMove;
+    public ChessPiece _chessPieceToMove;
+    public Tile _tileDestination;
+    public int _scoreOfMove = 0;
 }

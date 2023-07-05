@@ -24,6 +24,7 @@ public class ChessPiece : MonoBehaviour
     public ChessPieceType type;
     public ChessPieceFaction faction;
     public int _captureScore;
+    public Tile _currentTile;
 
     void Start()
     {

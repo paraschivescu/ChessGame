@@ -5,12 +5,10 @@ using UnityEditor;
 
 public class GameController : MonoBehaviour
 {
-    public LevelGrid _boardState;
+    public LevelGrid _currentBoardState;
+    public Dictionary<ChessPiece, Tile> _savedBoardState;
     [SerializeField] private ChessPiece _chessPiece;
     [SerializeField] private GameStates _currentGameState;
-    [SerializeField] private GameObject _chessPiecesParent;
-    [SerializeField] private List<ChessPiece> _chessPiecesInPlay;
-    [SerializeField] private List<Move> _movesConsidered;
 
     private enum GameStates
     {
@@ -26,10 +24,12 @@ public class GameController : MonoBehaviour
         
         // register events
         EventManager.TileClicked += OnTileClicked;
+
+        _savedBoardState = new Dictionary<ChessPiece, Tile>();
     }
 
     private ChessPiece GetChessPieceOnTile(Tile t) {
-        foreach (ChessPiece cp in _boardState.chessPiecesInPlay)
+        foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay)
         {
             if (cp.positionCoordsCurrent == t._tileCoords)
             {
@@ -41,7 +41,6 @@ public class GameController : MonoBehaviour
     }
 
     private void OnTileClicked(Tile tile) {
-        Debug.Log("tile clicked");
         void HighlightValidMoves(ChessPiece cp, bool onOff)
         {
             List<Tile> cpValidMoves = GetAbsoluteDestinationTiles(cp.type, cp._currentTile, true);
@@ -71,7 +70,7 @@ public class GameController : MonoBehaviour
                     HighlightValidMoves(_chessPiece, true); 
                 } else if (_otherChessPiece.faction == ChessPieceFaction.Zombie) {
                     Debug.Log("zombie killed");
-                    _boardState.chessPiecesInPlay.Remove(_otherChessPiece);
+                    _currentBoardState.chessPiecesInPlay.Remove(_otherChessPiece);
                     _otherChessPiece.gameObject.SetActive(false);
                 }
             }
@@ -86,13 +85,85 @@ public class GameController : MonoBehaviour
             }
         }
     }
-    
-    private void PlayCPUTurn()
-    {
-        LevelGrid initialBoardState = _boardState;
-        List<ChessPiece> initialChessPiecesInPlay = _boardState.chessPiecesInPlay;
 
-        // WIP select one of the own cps in play
+    void SaveBoardState() 
+    {
+        Debug.Log("SAVEBoardState (save chess piece positions)");
+        if (_savedBoardState.Count > 0 ) _savedBoardState.Clear();
+        foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay) {
+            _savedBoardState.Add(cp, cp._currentTile);
+        }
+    }
+
+    void LoadBoardState()
+    {
+        Debug.Log("LoadBoardState");
+        foreach (ChessPiece cpSaved in _savedBoardState.Keys)
+        {
+            // if chess piece is still on the board, move it to the appropriate tile
+            foreach (ChessPiece cpBoard in _currentBoardState.chessPiecesInPlay)
+            {
+                if (cpSaved == cpBoard) 
+                {
+                    PerformMove(cpBoard, _savedBoardState[cpSaved]);
+                    //cpBoard._currentTile = _savedBoardState[cpSaved]);
+                    //_currentBoardState.tiles
+                }
+            }
+
+            // if not, then instantiate it on the appropriate tile
+        }
+    }
+
+    private void PlayCPUTurn()
+    {   
+//        SaveBoardState();
+//      List<ChessPiece> initialChessPiecesInPlay = _boardState.chessPiecesInPlay;
+
+        // i think ima have to alter GetAbsoluteDestinationTiles to also take an argument that is the board, as when weighing possible moves it needs to try it on an invisible board..
+        //  OR maybe it's better if i let the CPU think using the visible board and just take a snapshot of the original board to restore things at the end
+
+        List<Move> treeRoots = new();
+        foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay) {
+            if (cp.faction == ChessPieceFaction.Zombie)
+            {
+                List<Tile> validDestTiles = GetAbsoluteDestinationTiles(cp.type, cp._currentTile, true);
+                foreach (Tile t in validDestTiles) {
+                    Move mv = new()
+                    {
+                        chessPieceToMove = cp,
+                        tileDestination = t
+                    };
+
+                    // compute score of move
+                    // todo: score of move should actually consider the overwatch reach of ALL pieces and not just the moved piece
+                    // todo: score of move should also include captured pieces
+                    List<Tile> overwatchedTilesOnNextMove = GetAbsoluteDestinationTiles(cp.type, t, false);
+                    foreach (Tile overwatchedTile in overwatchedTilesOnNextMove)
+                    {
+                        mv.scoreOfMove += overwatchedTile._overwatchScore;
+                    }
+                    
+                    treeRoots.Add(mv);
+                }
+            }
+        }
+        // at this point, the score of each move only takes into account the immediate result and not what the opponent might do
+        // we now need to go one level deeper in the tree and see what the opponent might do in response
+        
+
+
+        // perform root move and then do the same as above but for the opponent; then deduct the score from the root move
+
+        // reset board state to what it was before the computation of the next move
+//        LoadBoardState();
+        // need a function that resets the positions of all pieces to what they are set in the _boardState
+
+        treeRoots.Sort((x, y) => y.scoreOfMove.CompareTo(x.scoreOfMove));
+        PerformMove(treeRoots[0]);
+
+        
+/*        // WIP iterate own pieces. for each piece, look at possible moves 
         ChessPiece SelectOwnChessPieceToMove() {
             foreach (ChessPiece cp in initialChessPiecesInPlay)
             {
@@ -104,7 +175,7 @@ public class GameController : MonoBehaviour
             Debug.Log("No more chess pieces in faction. ");
             return null;
         }
-        
+
         ChessPiece chessPieceToMove = SelectOwnChessPieceToMove();
 
         //////// WIP select a move to play
@@ -114,23 +185,23 @@ public class GameController : MonoBehaviour
         foreach (Tile t in cpValidDestTiles)
         {
             Move mv = new() {
-                _chessPieceToMove = chessPieceToMove,
-                _tileDestination = t
+                chessPieceToMove = chessPieceToMove,
+                tileDestination = t
             };
 
             List<Tile> overwatchedTilesOnNextMove = GetAbsoluteDestinationTiles(chessPieceToMove.type, t, false);
             foreach (Tile overwatchedTile in overwatchedTilesOnNextMove) {
-                mv._scoreOfMove += overwatchedTile._overwatchScore;
+                mv.scoreOfMove += overwatchedTile._overwatchScore;
             }
             
             listOfMoves.Add(mv);      
         }
         // sort list of moves in descending order
-        listOfMoves.Sort((x, y) => y._scoreOfMove.CompareTo(x._scoreOfMove));
+        listOfMoves.Sort((x, y) => y.scoreOfMove.CompareTo(x.scoreOfMove));
 
         // perform the move with the highest score
         PerformMove(listOfMoves[0]);
-
+*/
         // end turn
         _currentGameState = GameStates.SelectChessPieceToMove;
     }
@@ -144,9 +215,9 @@ public class GameController : MonoBehaviour
 
     private void PerformMove(Move mv) 
     {
-        mv._chessPieceToMove.positionCoordsCurrent = mv._tileDestination._tileCoords;
-        mv._chessPieceToMove.transform.position = new Vector3(mv._tileDestination.transform.position.x, mv._tileDestination.transform.position.y, transform.position.z);
-        mv._chessPieceToMove._currentTile = mv._tileDestination;
+        mv.chessPieceToMove.positionCoordsCurrent = mv.tileDestination._tileCoords;
+        mv.chessPieceToMove.transform.position = new Vector3(mv.tileDestination.transform.position.x, mv.tileDestination.transform.position.y, transform.position.z);
+        mv.chessPieceToMove._currentTile = mv.tileDestination;
     }
 
     private List<Tile> GetAbsoluteDestinationTiles(ChessPieceType cpType, Tile startingTile, bool destinationsMustBeValid)
@@ -157,7 +228,7 @@ public class GameController : MonoBehaviour
             List<Tile> moves = new();
             foreach (Vector2Int newCoords in relativeValidDestinations)
             {
-                Tile t = _boardState.GetTileAtPosition(newCoords + startingTile._tileCoords);
+                Tile t = _currentBoardState.GetTileAtPosition(newCoords + startingTile._tileCoords);
 
                 if (!t) return moves;
                 if (GetChessPieceOnTile(t) && destinationsMustBeValid)
@@ -181,7 +252,7 @@ public class GameController : MonoBehaviour
 
         Tile CheckValidDestination(Vector2Int move) 
         {
-            Tile t = _boardState.GetTileAtPosition(move + startingTile._tileCoords);
+            Tile t = _currentBoardState.GetTileAtPosition(move + startingTile._tileCoords);
             if (!destinationsMustBeValid) return t;
             if (t && !GetChessPieceOnTile(t)) return t;
             else return null;
@@ -283,5 +354,16 @@ public class GameController : MonoBehaviour
         return absoluteValidMoves;
     }
 
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.L))
+        {
+            LoadBoardState();
+        }
 
+        if (Input.GetKeyDown(KeyCode.S))
+        {
+            SaveBoardState();
+        }        
+    }
 }

@@ -3,10 +3,20 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 
+public struct SavedChessPiecePosition 
+{
+    public ChessPiece chessPiece;
+    public Tile tile;
+    public bool activeState;
+}
+
 public class GameController : MonoBehaviour
 {
+
     public LevelGrid _currentBoardState;
-    public Dictionary<ChessPiece, Tile> _savedBoardState;
+    //public Dictionary<ChessPiece, Tile> _savedChessPiecePositions;
+    public List <SavedChessPiecePosition> _savedChessPiecePositions;
+
     [SerializeField] private ChessPiece _chessPiece;
     [SerializeField] private GameStates _currentGameState;
 
@@ -25,7 +35,8 @@ public class GameController : MonoBehaviour
         // register events
         EventManager.TileClicked += OnTileClicked;
 
-        _savedBoardState = new Dictionary<ChessPiece, Tile>();
+//        _savedChessPiecePositions = new Dictionary<ChessPiece, Tile>();
+        _savedChessPiecePositions = new List<SavedChessPiecePosition>();
     }
 
     private ChessPiece GetChessPieceOnTile(Tile t) {
@@ -64,14 +75,12 @@ public class GameController : MonoBehaviour
             if (GetChessPieceOnTile(tile)) { // even though we've already selected a piece to move, we've clicked on a tile occupied by another chess piece
                 // depending on the faction, we need to either capture the piece or select it (if it's one of ours)
                 ChessPiece _otherChessPiece = GetChessPieceOnTile(tile);
-                if (_otherChessPiece.faction == ChessPieceFaction.White) {
+                if (_otherChessPiece.faction == GetFaction(true)) {
                     HighlightValidMoves(_chessPiece, false); // remove the highlight for the legal moves of the old selected cp
                     _chessPiece = GetChessPieceOnTile(tile); // select the new cp
                     HighlightValidMoves(_chessPiece, true); 
-                } else if (_otherChessPiece.faction == ChessPieceFaction.Zombie) {
-                    Debug.Log("zombie killed");
-                    _currentBoardState.chessPiecesInPlay.Remove(_otherChessPiece);
-                    _otherChessPiece.gameObject.SetActive(false);
+                } else if (_otherChessPiece.faction == GetFaction(false)) {
+                    CapturePiece(_otherChessPiece);
                 }
             }
             List<Tile> cpValidMoves = GetAbsoluteDestinationTiles(_chessPiece.type, _chessPiece._currentTile, true);
@@ -88,40 +97,93 @@ public class GameController : MonoBehaviour
 
     void SaveBoardState() 
     {
-        Debug.Log("SAVEBoardState (save chess piece positions)");
-        if (_savedBoardState.Count > 0 ) _savedBoardState.Clear();
+        if (_savedChessPiecePositions.Count > 0 ) _savedChessPiecePositions.Clear();
         foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay) {
-            _savedBoardState.Add(cp, cp._currentTile);
+            SavedChessPiecePosition pos = new()
+            {
+                chessPiece = cp,
+                tile = cp._currentTile,
+                activeState = cp.gameObject.activeSelf
+            };
+            _savedChessPiecePositions.Add(pos);
         }
+    }
+
+    private void PerformMove(ChessPiece cp, Tile t, bool capture=true)
+    {
+        // if there's a piece to the dest tile, and we're not calling this with the "false" flag from LoadBoardState, then capture it
+        if (capture && GetChessPieceOnTile(t)) CapturePiece(GetChessPieceOnTile(t));        
+
+        // update coords of cp to those of the dest tile
+        cp.positionCoordsCurrent = t._tileCoords;
+        // move transform
+        cp.transform.position = new Vector3(t.transform.position.x, t.transform.position.y, transform.position.z);
+        // make old tile cp field null and update new tile with cp
+        cp._currentTile._chessPiece = null;
+        t._chessPiece = cp;
+        // update cp 
+        cp._currentTile = t;
+
+    }
+
+    private void PerformMove(Move mv, bool capture=true)
+    {
+        // if there's a piece to the dest tile, and we're not calling this with the "false" flag from LoadBoardState, then capture it
+        if (capture && GetChessPieceOnTile(mv.tileDestination)) CapturePiece(GetChessPieceOnTile(mv.tileDestination));
+
+        mv.chessPieceToMove.positionCoordsCurrent = mv.tileDestination._tileCoords;
+        mv.chessPieceToMove.transform.position = new Vector3(mv.tileDestination.transform.position.x, mv.tileDestination.transform.position.y, transform.position.z);
+        mv.chessPieceToMove._currentTile._chessPiece = null;
+        mv.tileDestination._chessPiece = mv.chessPieceToMove;
+        mv.chessPieceToMove._currentTile = mv.tileDestination;
+    }
+
+    private void CapturePiece(ChessPiece cp)
+    {
+        Debug.Log("Piece captured.");
+        _currentBoardState.chessPiecesInPlay.Remove(cp);
+        cp.gameObject.SetActive(false);
+
+        // gotta also change the cp reference onm the tile
+        _currentBoardState.GetTileAtPosition(cp.positionCoordsCurrent)._chessPiece = null;
+
+        // and the tile reference on the cp
+        cp._currentTile = null;
     }
 
     void LoadBoardState()
     {
-        Debug.Log("LoadBoardState");
-        foreach (ChessPiece cpSaved in _savedBoardState.Keys)
+        foreach (SavedChessPiecePosition pos in _savedChessPiecePositions)
         {
-            // if chess piece is still on the board, move it to the appropriate tile
+            if (pos.activeState == true) {
+                pos.chessPiece.gameObject.SetActive(true);
+                PerformMove(pos.chessPiece, pos.tile, false);
+                pos.tile._chessPiece = pos.chessPiece;
+                _currentBoardState.chessPiecesInPlay.Add(pos.chessPiece);
+            }
+
+/*            // if chess piece is still on the board, move it to the appropriate tile
             foreach (ChessPiece cpBoard in _currentBoardState.chessPiecesInPlay)
             {
                 if (cpSaved == cpBoard) 
                 {
-                    PerformMove(cpBoard, _savedBoardState[cpSaved]);
+                    PerformMove(cpBoard, _savedChessPiecePositions[cpSaved]);
                     //cpBoard._currentTile = _savedBoardState[cpSaved]);
                     //_currentBoardState.tiles
                 }
             }
 
-            // if not, then instantiate it on the appropriate tile
+  */          // if not, then instantiate it on the appropriate tile
         }
     }
 
     private void PlayCPUTurn()
     {   
-//        SaveBoardState();
-//      List<ChessPiece> initialChessPiecesInPlay = _boardState.chessPiecesInPlay;
+        // SaveBoardState();
+        // List<ChessPiece> initialChessPiecesInPlay = _boardState.chessPiecesInPlay;
 
         // i think ima have to alter GetAbsoluteDestinationTiles to also take an argument that is the board, as when weighing possible moves it needs to try it on an invisible board..
-        //  OR maybe it's better if i let the CPU think using the visible board and just take a snapshot of the original board to restore things at the end
+        // OR maybe it's better if i let the CPU think using the visible board and just take a snapshot of the original board to restore things at the end
 
         List<Move> treeRoots = new();
         foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay) {
@@ -135,9 +197,14 @@ public class GameController : MonoBehaviour
                         tileDestination = t
                     };
 
+                    // todo: score of move should also include captured pieces
+                    if (t._chessPiece)
+                    {
+                        mv.scoreOfMove += t._chessPiece._captureScore;
+                    }
+
                     // compute score of move
                     // todo: score of move should actually consider the overwatch reach of ALL pieces and not just the moved piece
-                    // todo: score of move should also include captured pieces
                     List<Tile> overwatchedTilesOnNextMove = GetAbsoluteDestinationTiles(cp.type, t, false);
                     foreach (Tile overwatchedTile in overwatchedTilesOnNextMove)
                     {
@@ -147,6 +214,24 @@ public class GameController : MonoBehaviour
                     treeRoots.Add(mv);
                 }
             }
+        }
+
+        foreach (Move mv in treeRoots) 
+        {
+//            SaveBoardState();
+//            PerformMove(mv);
+
+            // calculate opponent move scores
+  /*          foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay)
+            {
+                if (cp.faction == ChessPieceFaction.White)
+                {
+
+                }
+
+            }*/
+
+//            LoadBoardState();
         }
         // at this point, the score of each move only takes into account the immediate result and not what the opponent might do
         // we now need to go one level deeper in the tree and see what the opponent might do in response
@@ -206,22 +291,26 @@ public class GameController : MonoBehaviour
         _currentGameState = GameStates.SelectChessPieceToMove;
     }
 
-    private void PerformMove(ChessPiece cp, Tile t)
+    private ChessPieceFaction GetFaction(bool ownFaction)
     {
-        cp.positionCoordsCurrent = t._tileCoords;
-        cp.transform.position = new Vector3(t.transform.position.x, t.transform.position.y, transform.position.z);
-        cp._currentTile = t;
-    }
-
-    private void PerformMove(Move mv) 
-    {
-        mv.chessPieceToMove.positionCoordsCurrent = mv.tileDestination._tileCoords;
-        mv.chessPieceToMove.transform.position = new Vector3(mv.tileDestination.transform.position.x, mv.tileDestination.transform.position.y, transform.position.z);
-        mv.chessPieceToMove._currentTile = mv.tileDestination;
+        if (ownFaction) {
+            if (_currentGameState == GameStates.SelectChessPieceToMove || _currentGameState == GameStates.MoveSelectedChessPiece) return ChessPieceFaction.White;
+            if (_currentGameState == GameStates.CPUTurn) return ChessPieceFaction.Zombie;
+        } else {
+            if (_currentGameState == GameStates.SelectChessPieceToMove || _currentGameState == GameStates.MoveSelectedChessPiece) return ChessPieceFaction.Zombie;
+            if (_currentGameState == GameStates.CPUTurn) return ChessPieceFaction.White;
+        }
+        return ChessPieceFaction.Neutral;
     }
 
     private List<Tile> GetAbsoluteDestinationTiles(ChessPieceType cpType, Tile startingTile, bool destinationsMustBeValid)
     {
+
+        // NOTE: destinationsMustBeValid flag exists because we're using this same method to return overwatch tiles. 
+        // If destinationsMustBeValid is true, then this method must only return tiles where this piece can move to
+        // so when we encounter a tile occupied by a piece,
+        // if the piece is our own: we stop looking in that direction and that tile is NOT a valid move
+        // if the piece is enemy: we stop looking in that direction but that tile IS a valid move, capturing the opp piece
 
         List<Tile> CheckValidDestinations(List<Vector2Int> relativeValidDestinations)
         {
@@ -233,12 +322,12 @@ public class GameController : MonoBehaviour
                 if (!t) return moves;
                 if (GetChessPieceOnTile(t) && destinationsMustBeValid)
                 {
-                    if (GetChessPieceOnTile(t).faction == ChessPieceFaction.White)
+                    if (GetChessPieceOnTile(t).faction == GetFaction(true))
                     {
                         return moves;
                     }
                     else
-                    { // zombie
+                    { // opponent
                         moves.Add(t);
                         return moves;
                     }
@@ -253,9 +342,14 @@ public class GameController : MonoBehaviour
         Tile CheckValidDestination(Vector2Int move) 
         {
             Tile t = _currentBoardState.GetTileAtPosition(move + startingTile._tileCoords);
-            if (!destinationsMustBeValid) return t;
-            if (t && !GetChessPieceOnTile(t)) return t;
-            else return null;
+            // tile is not there (ie destination is outside the board) OR tile is occupied by own piece
+            if (!t) return null;
+            if (GetChessPieceOnTile(t)) {
+                if (GetChessPieceOnTile(t).faction == GetFaction(true)) return null;
+            }
+
+            // tile is occupied by opponent piece or is unoccupied
+            return t;
         }
         
         // create lists for relative valid moves for each piece type

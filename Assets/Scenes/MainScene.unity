@@ -8564,6 +8564,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 80b3b02f72286e147a4a9869db6af138, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  chessPiecesParent: {fileID: 653360846}
   tiles: []
   chessPiecesInPlay: []
 --- !u!1 &744461503 stripped
@@ -8592,7 +8593,7 @@ MonoBehaviour:
   type: 4
   faction: 0
   _captureScore: 0
-  _currentTile: {fileID: 0}
+  _currentTile: {fileID: 1570210063}
 --- !u!1 &747724119
 GameObject:
   m_ObjectHideFlags: 0
@@ -16827,6 +16828,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 80b3b02f72286e147a4a9869db6af138, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  chessPiecesParent: {fileID: 0}
   tiles: []
   chessPiecesInPlay: []
 --- !u!4 &1442619721 stripped
@@ -22139,11 +22141,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4010933918866702, guid: 391882f14be491c40962add653844907, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 1
+      value: 0.83
       objectReference: {fileID: 0}
     - target: {fileID: 4010933918866702, guid: 391882f14be491c40962add653844907, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1
+      value: 1.06
       objectReference: {fileID: 0}
     - target: {fileID: 4010933918866702, guid: 391882f14be491c40962add653844907, type: 3}
       propertyPath: m_LocalPosition.z

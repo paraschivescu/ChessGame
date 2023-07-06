@@ -15,7 +15,8 @@ public enum ChessPieceType
 public enum ChessPieceFaction
 {
     White,
-    Zombie
+    Zombie,
+    Neutral
 }
 
 public class ChessPiece : MonoBehaviour

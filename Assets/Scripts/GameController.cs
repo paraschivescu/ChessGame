@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEditor;
 
@@ -14,9 +15,7 @@ public class GameController : MonoBehaviour
 {
 
     public LevelGrid _currentBoardState;
-    //public Dictionary<ChessPiece, Tile> _savedChessPiecePositions;
     public List <SavedChessPiecePosition> _savedChessPiecePositions;
-
     [SerializeField] private ChessPiece _chessPiece;
     [SerializeField] private GameStates _currentGameState;
 
@@ -79,8 +78,6 @@ public class GameController : MonoBehaviour
                     HighlightValidMoves(_chessPiece, false); // remove the highlight for the legal moves of the old selected cp
                     _chessPiece = GetChessPieceOnTile(tile); // select the new cp
                     HighlightValidMoves(_chessPiece, true); 
-                } else if (_otherChessPiece.faction == GetFaction(false)) {
-                    CapturePiece(_otherChessPiece);
                 }
             }
             List<Tile> cpValidMoves = GetAbsoluteDestinationTiles(_chessPiece.type, _chessPiece._currentTile, true);
@@ -182,111 +179,119 @@ public class GameController : MonoBehaviour
         // SaveBoardState();
         // List<ChessPiece> initialChessPiecesInPlay = _boardState.chessPiecesInPlay;
 
-        // i think ima have to alter GetAbsoluteDestinationTiles to also take an argument that is the board, as when weighing possible moves it needs to try it on an invisible board..
-        // OR maybe it's better if i let the CPU think using the visible board and just take a snapshot of the original board to restore things at the end
+        //const int DEPTH = 2;
+        // create list of move trees
+        Dictionary<Move, int> moveBranches = new(); // root move, total tree score
 
-        List<Move> treeRoots = new();
+        // iterate own pieces and create a move tree for each valid root move
         foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay) {
-            if (cp.faction == ChessPieceFaction.Zombie)
+            if (cp.faction == GetFaction(true))
             {
+                // see where CP can move to
                 List<Tile> validDestTiles = GetAbsoluteDestinationTiles(cp.type, cp._currentTile, true);
-                foreach (Tile t in validDestTiles) {
+
+                // compute move score
+                foreach (Tile t in validDestTiles) {                    
+                    int branchScore = 0;
+                    
                     Move mv = new()
                     {
                         chessPieceToMove = cp,
                         tileDestination = t
                     };
 
-                    // todo: score of move should also include captured pieces
                     if (t._chessPiece)
                     {
                         mv.scoreOfMove += t._chessPiece._captureScore;
                     }
 
-                    // compute score of move
-                    // todo: score of move should actually consider the overwatch reach of ALL pieces and not just the moved piece
+                    // TODO score of move should actually be the score of the board state; ie. should consider the overwatch reach of ALL pieces and not just the moved piece
                     List<Tile> overwatchedTilesOnNextMove = GetAbsoluteDestinationTiles(cp.type, t, false);
                     foreach (Tile overwatchedTile in overwatchedTilesOnNextMove)
                     {
                         mv.scoreOfMove += overwatchedTile._overwatchScore;
                     }
-                    
-                    treeRoots.Add(mv);
+                    branchScore += mv.scoreOfMove;
+
+                    // search further down the tree and keep adding to treeScore
+                    // the result will be a large dictionary with a lot of the same keys (the same root move) but different values; we will have to pick the root move with the highest value
+
+
+                    moveBranches.Add(mv, branchScore); // this line should appear at the end of the tree (Actually i guess it's the branch)
                 }
             }
         }
-
-        foreach (Move mv in treeRoots) 
-        {
-//            SaveBoardState();
-//            PerformMove(mv);
-
-            // calculate opponent move scores
-  /*          foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay)
-            {
-                if (cp.faction == ChessPieceFaction.White)
+        /*
+                foreach (Move mv in treeRoots) 
                 {
+                    SaveBoardState();
+                    PerformMove(mv);
 
+                    // we will assume the opponent makes the BEST move they can and nix all the other trees when looking at other moves down the line
+                    List<Move> opponentMoves = new();
+                    foreach (ChessPiece opponentCp in _currentBoardState.chessPiecesInPlay)
+                    {
+                        if (opponentCp.faction == GetFaction(false))
+                        {
+                            List<Tile> validDestTiles = GetAbsoluteDestinationTiles(opponentCp.type, opponentCp._currentTile, true);
+                            foreach (Tile t in validDestTiles)
+                            {
+                                Move opponentMv = new()
+                                {
+                                    chessPieceToMove = opponentCp,
+                                    tileDestination = t
+                                };
+
+                                // compute score of move
+                                if (t._chessPiece)
+                                {
+                                    opponentMv.scoreOfMove += t._chessPiece._captureScore;
+                                }
+
+                                // todo: score of move should actually consider the overwatch reach of ALL pieces and not just the moved piece
+                                List<Tile> overwatchedTilesOnNextMove = GetAbsoluteDestinationTiles(opponentCp.type, t, false);
+                                foreach (Tile overwatchedTile in overwatchedTilesOnNextMove)
+                                {
+                                    opponentMv.scoreOfMove += overwatchedTile._overwatchScore;
+                                }
+
+                                opponentMoves.Add(opponentMv);
+                            }
+                        }
+                    }
+
+                    // calculate opponent move scores
+                              foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay)
+                              {
+                                  if (cp.faction == ChessPieceFaction.White)
+                                  {
+
+                                  }
+
+                              }
+
+                    LoadBoardState();
                 }
+                // at this point, the score of each move only takes into account the immediate result and not what the opponent might do
+                // we now need to go one level deeper in the tree and see what the opponent might do in response
 
-            }*/
-
-//            LoadBoardState();
-        }
-        // at this point, the score of each move only takes into account the immediate result and not what the opponent might do
-        // we now need to go one level deeper in the tree and see what the opponent might do in response
-        
-
+        */
 
         // perform root move and then do the same as above but for the opponent; then deduct the score from the root move
 
         // reset board state to what it was before the computation of the next move
-//        LoadBoardState();
+        //        LoadBoardState();
         // need a function that resets the positions of all pieces to what they are set in the _boardState
 
-        treeRoots.Sort((x, y) => y.scoreOfMove.CompareTo(x.scoreOfMove));
-        PerformMove(treeRoots[0]);
 
+        // WIP the sort function should actually run on the list of move trees
+        // the result will be a large dictionary with a lot of the same keys (the same root move) but different values; we will have to pick the root move with the highest value
+
+        var bestBranchRootMove = moveBranches.Aggregate((x, y) => x.Value > y.Value ? x : y).Key;
+        PerformMove(bestBranchRootMove);
+//        treeRoots.Sort((x, y) => y.scoreOfMove.CompareTo(x.scoreOfMove));
+//        PerformMove(treeRoots[0]);
         
-/*        // WIP iterate own pieces. for each piece, look at possible moves 
-        ChessPiece SelectOwnChessPieceToMove() {
-            foreach (ChessPiece cp in initialChessPiecesInPlay)
-            {
-                if (cp.faction == ChessPieceFaction.Zombie)
-                {
-                    return cp;
-                }
-            }
-            Debug.Log("No more chess pieces in faction. ");
-            return null;
-        }
-
-        ChessPiece chessPieceToMove = SelectOwnChessPieceToMove();
-
-        //////// WIP select a move to play
-        List<Tile> cpValidDestTiles = GetAbsoluteDestinationTiles(chessPieceToMove.type, chessPieceToMove._currentTile, true);
-
-        List<Move> listOfMoves = new();
-        foreach (Tile t in cpValidDestTiles)
-        {
-            Move mv = new() {
-                chessPieceToMove = chessPieceToMove,
-                tileDestination = t
-            };
-
-            List<Tile> overwatchedTilesOnNextMove = GetAbsoluteDestinationTiles(chessPieceToMove.type, t, false);
-            foreach (Tile overwatchedTile in overwatchedTilesOnNextMove) {
-                mv.scoreOfMove += overwatchedTile._overwatchScore;
-            }
-            
-            listOfMoves.Add(mv);      
-        }
-        // sort list of moves in descending order
-        listOfMoves.Sort((x, y) => y.scoreOfMove.CompareTo(x.scoreOfMove));
-
-        // perform the move with the highest score
-        PerformMove(listOfMoves[0]);
-*/
         // end turn
         _currentGameState = GameStates.SelectChessPieceToMove;
     }

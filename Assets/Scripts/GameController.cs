@@ -37,18 +37,6 @@ public class GameController : MonoBehaviour
         _savedChessPiecePositions = new Dictionary<ChessPiece, Tile>();
     }
 
-    private ChessPiece GetChessPieceOnTile(Tile t) {
-        foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay)
-        {
-            if (cp.positionCoordsCurrent == t._tileCoords)
-            {
-                // there's a piece on this tile, return the piece
-                return cp;
-            }
-        }
-        return null;
-    }
-
     private void OnTileClicked(Tile tile) {
         void HighlightValidMoves(ChessPiece cp, bool onOff)
         {
@@ -61,7 +49,7 @@ public class GameController : MonoBehaviour
 
         // if a piece is not selected, select a piece to move 
         if (_currentGameState == GameStates.SelectChessPieceToMove) {          
-            _chessPiece = GetChessPieceOnTile(tile);
+            _chessPiece = _currentBoardState.GetChessPieceOnTile(tile);
             if (!_chessPiece || (_chessPiece.faction != ChessPieceFaction.White)) 
                 return;
             HighlightValidMoves(_chessPiece, true);
@@ -70,12 +58,12 @@ public class GameController : MonoBehaviour
 
         // if a piece is already selected, move to the clicked tile        
         if (_currentGameState == GameStates.MoveSelectedChessPiece) {
-            if (GetChessPieceOnTile(tile)) { // even though we've already selected a piece to move, we've clicked on a tile occupied by another chess piece
+            if (_currentBoardState.GetChessPieceOnTile(tile)) { // even though we've already selected a piece to move, we've clicked on a tile occupied by another chess piece
                 // depending on the faction, we need to either capture the piece or select it (if it's one of ours)
-                ChessPiece _otherChessPiece = GetChessPieceOnTile(tile);
+                ChessPiece _otherChessPiece = _currentBoardState.GetChessPieceOnTile(tile);
                 if (_otherChessPiece.faction == GetFaction(true)) {
                     HighlightValidMoves(_chessPiece, false); // remove the highlight for the legal moves of the old selected cp
-                    _chessPiece = GetChessPieceOnTile(tile); // select the new cp
+                    _chessPiece = _currentBoardState.GetChessPieceOnTile(tile); // select the new cp
                     HighlightValidMoves(_chessPiece, true); 
                 }
             }
@@ -103,8 +91,6 @@ public class GameController : MonoBehaviour
     void LoadBoardState()
     {
         Debug.Log("Loard Board State");
-
-        // in teorie mai tre doar sa setez ca null referinta la CP de pe tile-urile unde ,dupa load, nu mai sunt cp-uri
         
         _currentBoardState.chessPiecesInPlay.Clear();
         foreach (var pos in _savedChessPiecePositions)
@@ -118,9 +104,8 @@ public class GameController : MonoBehaviour
             // move transform
             pos.Key.transform.position = new Vector3(pos.Value.transform.position.x, pos.Value.transform.position.y, transform.position.z);
 
-            // set cp and tile references on each other
+            // set cp tile references on cp
             pos.Key._currentTile = pos.Value;
-            pos.Key._currentTile._chessPiece = pos.Key;        
         }
         
     }
@@ -128,15 +113,12 @@ public class GameController : MonoBehaviour
     private void PerformMove(ChessPiece cp, Tile t, bool capture=true)
     {
         // if there's a piece to the dest tile, and we're not calling this with the "false" flag from LoadBoardState, then capture it
-        if (capture && GetChessPieceOnTile(t)) CapturePiece(GetChessPieceOnTile(t));        
+        if (capture && _currentBoardState.GetChessPieceOnTile(t)) CapturePiece(_currentBoardState.GetChessPieceOnTile(t));        
 
         // update coords of cp to those of the dest tile
         cp.positionCoordsCurrent = t._tileCoords;
         // move transform
         cp.transform.position = new Vector3(t.transform.position.x, t.transform.position.y, transform.position.z);
-        // make old tile cp field null and update new tile with cp
-        cp._currentTile._chessPiece = null;
-        t._chessPiece = cp;
         // update cp 
         cp._currentTile = t;
 
@@ -145,12 +127,10 @@ public class GameController : MonoBehaviour
     private void PerformMove(Move mv, bool capture=true)
     {
         // if there's a piece to the dest tile, and we're not calling this with the "false" flag from LoadBoardState, then capture it
-        if (capture && GetChessPieceOnTile(mv.tileDestination)) CapturePiece(GetChessPieceOnTile(mv.tileDestination));
+        if (capture && _currentBoardState.GetChessPieceOnTile(mv.tileDestination)) CapturePiece(_currentBoardState.GetChessPieceOnTile(mv.tileDestination));
 
         mv.chessPieceToMove.positionCoordsCurrent = mv.tileDestination._tileCoords;
         mv.chessPieceToMove.transform.position = new Vector3(mv.tileDestination.transform.position.x, mv.tileDestination.transform.position.y, transform.position.z);
-        mv.chessPieceToMove._currentTile._chessPiece = null;
-        mv.tileDestination._chessPiece = mv.chessPieceToMove;
         mv.chessPieceToMove._currentTile = mv.tileDestination;
     }
 
@@ -159,9 +139,6 @@ public class GameController : MonoBehaviour
         Debug.Log("Piece captured.");
         _currentBoardState.chessPiecesInPlay.Remove(cp);
         cp.gameObject.SetActive(false);
-
-        // gotta also change the cp reference onm the tile
-        _currentBoardState.GetTileAtPosition(cp.positionCoordsCurrent)._chessPiece = null;
 
         // and the tile reference on the cp
         cp._currentTile = null;
@@ -194,9 +171,9 @@ public class GameController : MonoBehaviour
                         tileDestination = t
                     };
 
-                    if (t._chessPiece)
+                    if (_currentBoardState.GetChessPieceOnTile(t))
                     {
-                        mv.scoreOfMove += t._chessPiece._captureScore;
+                        mv.scoreOfMove += _currentBoardState.GetChessPieceOnTile(t)._captureScore;
                     }
 
                     // TODO score of move should actually be the score of the board state; ie. should consider the overwatch reach of ALL pieces and not just the moved piece
@@ -280,9 +257,9 @@ public class GameController : MonoBehaviour
                 Tile t = _currentBoardState.GetTileAtPosition(newCoords + startingTile._tileCoords);
 
                 if (!t) return moves;
-                if (GetChessPieceOnTile(t) && destinationsMustBeValid)
+                if (_currentBoardState.GetChessPieceOnTile(t) && destinationsMustBeValid)
                 {
-                    if (GetChessPieceOnTile(t).faction == GetFaction(true))
+                    if (_currentBoardState.GetChessPieceOnTile(t).faction == GetFaction(true))
                     {
                         return moves;
                     }
@@ -304,8 +281,8 @@ public class GameController : MonoBehaviour
             Tile t = _currentBoardState.GetTileAtPosition(move + startingTile._tileCoords);
             // tile is not there (ie destination is outside the board) OR tile is occupied by own piece
             if (!t) return null;
-            if (GetChessPieceOnTile(t)) {
-                if (GetChessPieceOnTile(t).faction == GetFaction(true)) return null;
+            if (_currentBoardState.GetChessPieceOnTile(t)) {
+                if (_currentBoardState.GetChessPieceOnTile(t).faction == GetFaction(true)) return null;
             }
 
             // tile is occupied by opponent piece or is unoccupied

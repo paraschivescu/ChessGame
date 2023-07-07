@@ -57,5 +57,19 @@ public class LevelGrid : MonoBehaviour
     }
 
 
+    public ChessPiece GetChessPieceOnTile(Tile t)
+    {
+        foreach (ChessPiece cp in chessPiecesInPlay)
+        {
+            if (cp.positionCoordsCurrent == t._tileCoords)
+            {
+                // there's a piece on this tile, return the piece
+                return cp;
+            }
+        }
+        return null;
+    }
+
+
 }
 

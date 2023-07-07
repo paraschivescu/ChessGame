@@ -7,7 +7,6 @@ public class Tile : MonoBehaviour
     [SerializeField] private Color _baseColor, _offsetColor;
     [SerializeField] private SpriteRenderer _renderer;
     [SerializeField] private GameObject _highlight;
-    public ChessPiece _chessPiece;
     public Vector2Int _tileCoords;
     public int _overwatchScore;
 

@@ -15,7 +15,7 @@ public class GameController : MonoBehaviour
 {
 
     public LevelGrid _currentBoardState;
-    public List <SavedChessPiecePosition> _savedChessPiecePositions;
+    public Dictionary<ChessPiece,Tile> _savedChessPiecePositions;
     [SerializeField] private ChessPiece _chessPiece;
     [SerializeField] private GameStates _currentGameState;
 
@@ -34,8 +34,7 @@ public class GameController : MonoBehaviour
         // register events
         EventManager.TileClicked += OnTileClicked;
 
-//        _savedChessPiecePositions = new Dictionary<ChessPiece, Tile>();
-        _savedChessPiecePositions = new List<SavedChessPiecePosition>();
+        _savedChessPiecePositions = new Dictionary<ChessPiece, Tile>();
     }
 
     private ChessPiece GetChessPieceOnTile(Tile t) {
@@ -96,14 +95,34 @@ public class GameController : MonoBehaviour
     {
         if (_savedChessPiecePositions.Count > 0 ) _savedChessPiecePositions.Clear();
         foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay) {
-            SavedChessPiecePosition pos = new()
-            {
-                chessPiece = cp,
-                tile = cp._currentTile,
-                activeState = cp.gameObject.activeSelf
-            };
-            _savedChessPiecePositions.Add(pos);
+            _savedChessPiecePositions.Add(cp, cp._currentTile);
         }
+        Debug.Log(_savedChessPiecePositions.Count + "/" + _currentBoardState.chessPiecesInPlay.Count);
+    }
+
+    void LoadBoardState()
+    {
+        Debug.Log("Loard Board State");
+
+        // in teorie mai tre doar sa setez ca null referinta la CP de pe tile-urile unde ,dupa load, nu mai sunt cp-uri
+        
+        _currentBoardState.chessPiecesInPlay.Clear();
+        foreach (var pos in _savedChessPiecePositions)
+        {
+            _currentBoardState.chessPiecesInPlay.Add(pos.Key);
+            pos.Key.gameObject.SetActive(true);
+
+            // set cp coords
+            pos.Key.positionCoordsCurrent = pos.Value._tileCoords;
+
+            // move transform
+            pos.Key.transform.position = new Vector3(pos.Value.transform.position.x, pos.Value.transform.position.y, transform.position.z);
+
+            // set cp and tile references on each other
+            pos.Key._currentTile = pos.Value;
+            pos.Key._currentTile._chessPiece = pos.Key;        
+        }
+        
     }
 
     private void PerformMove(ChessPiece cp, Tile t, bool capture=true)
@@ -148,32 +167,6 @@ public class GameController : MonoBehaviour
         cp._currentTile = null;
     }
 
-    void LoadBoardState()
-    {
-        foreach (SavedChessPiecePosition pos in _savedChessPiecePositions)
-        {
-            if (pos.activeState == true) {
-                pos.chessPiece.gameObject.SetActive(true);
-                PerformMove(pos.chessPiece, pos.tile, false);
-                pos.tile._chessPiece = pos.chessPiece;
-                _currentBoardState.chessPiecesInPlay.Add(pos.chessPiece);
-            }
-
-/*            // if chess piece is still on the board, move it to the appropriate tile
-            foreach (ChessPiece cpBoard in _currentBoardState.chessPiecesInPlay)
-            {
-                if (cpSaved == cpBoard) 
-                {
-                    PerformMove(cpBoard, _savedChessPiecePositions[cpSaved]);
-                    //cpBoard._currentTile = _savedBoardState[cpSaved]);
-                    //_currentBoardState.tiles
-                }
-            }
-
-  */          // if not, then instantiate it on the appropriate tile
-        }
-    }
-
     private void PlayCPUTurn()
     {   
         // SaveBoardState();
@@ -183,6 +176,7 @@ public class GameController : MonoBehaviour
         // create list of move trees
         Dictionary<Move, int> moveBranches = new(); // root move, total tree score
 
+//        SaveBoardState();
         // iterate own pieces and create a move tree for each valid root move
         foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay) {
             if (cp.faction == GetFaction(true))
@@ -213,85 +207,46 @@ public class GameController : MonoBehaviour
                     }
                     branchScore += mv.scoreOfMove;
 
-                    // search further down the tree and keep adding to treeScore
+
+                    // perform each move and search further down the tree and keep adding to treeScore
                     // the result will be a large dictionary with a lot of the same keys (the same root move) but different values; we will have to pick the root move with the highest value
 
-
-                    moveBranches.Add(mv, branchScore); // this line should appear at the end of the tree (Actually i guess it's the branch)
-                }
-            }
-        }
-        /*
-                foreach (Move mv in treeRoots) 
-                {
-                    SaveBoardState();
-                    PerformMove(mv);
-
-                    // we will assume the opponent makes the BEST move they can and nix all the other trees when looking at other moves down the line
-                    List<Move> opponentMoves = new();
-                    foreach (ChessPiece opponentCp in _currentBoardState.chessPiecesInPlay)
+/*                    PerformMove(mv);
+                    foreach (ChessPiece cp2 in _currentBoardState.chessPiecesInPlay)
                     {
-                        if (opponentCp.faction == GetFaction(false))
+                        if (cp2.faction == GetFaction(false))
                         {
-                            List<Tile> validDestTiles = GetAbsoluteDestinationTiles(opponentCp.type, opponentCp._currentTile, true);
-                            foreach (Tile t in validDestTiles)
+                            List<Tile> validDestTiles2 = GetAbsoluteDestinationTiles(cp2.type, cp2._currentTile, true);
+                            foreach (Tile t2 in validDestTiles)
                             {
-                                Move opponentMv = new()
+                                Move mv2 = new()
                                 {
-                                    chessPieceToMove = opponentCp,
-                                    tileDestination = t
+                                    chessPieceToMove = cp2,
+                                    tileDestination = t2
                                 };
 
-                                // compute score of move
-                                if (t._chessPiece)
+                                if (t2._chessPiece)
                                 {
-                                    opponentMv.scoreOfMove += t._chessPiece._captureScore;
+                                    mv2.scoreOfMove -= t2._chessPiece._captureScore;
                                 }
-
-                                // todo: score of move should actually consider the overwatch reach of ALL pieces and not just the moved piece
-                                List<Tile> overwatchedTilesOnNextMove = GetAbsoluteDestinationTiles(opponentCp.type, t, false);
+                                List<Tile> overwatchedTilesOnNextMove2 = GetAbsoluteDestinationTiles(cp.type, t, false);
                                 foreach (Tile overwatchedTile in overwatchedTilesOnNextMove)
                                 {
-                                    opponentMv.scoreOfMove += overwatchedTile._overwatchScore;
+                                    mv2.scoreOfMove -= overwatchedTile._overwatchScore;
                                 }
-
-                                opponentMoves.Add(opponentMv);
+                                branchScore -= mv2.scoreOfMove;
                             }
                         }
                     }
-
-                    // calculate opponent move scores
-                              foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay)
-                              {
-                                  if (cp.faction == ChessPieceFaction.White)
-                                  {
-
-                                  }
-
-                              }
-
-                    LoadBoardState();
+                    LoadBoardState();*/
+                    moveBranches.Add(mv, branchScore); // this line should appear at the end of the branch)
                 }
-                // at this point, the score of each move only takes into account the immediate result and not what the opponent might do
-                // we now need to go one level deeper in the tree and see what the opponent might do in response
-
-        */
-
-        // perform root move and then do the same as above but for the opponent; then deduct the score from the root move
-
-        // reset board state to what it was before the computation of the next move
-        //        LoadBoardState();
-        // need a function that resets the positions of all pieces to what they are set in the _boardState
-
-
-        // WIP the sort function should actually run on the list of move trees
-        // the result will be a large dictionary with a lot of the same keys (the same root move) but different values; we will have to pick the root move with the highest value
+            }
+        }
 
         var bestBranchRootMove = moveBranches.Aggregate((x, y) => x.Value > y.Value ? x : y).Key;
         PerformMove(bestBranchRootMove);
-//        treeRoots.Sort((x, y) => y.scoreOfMove.CompareTo(x.scoreOfMove));
-//        PerformMove(treeRoots[0]);
-        
+
         // end turn
         _currentGameState = GameStates.SelectChessPieceToMove;
     }

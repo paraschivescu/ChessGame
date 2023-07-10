@@ -21,20 +21,12 @@ public class UIController : MonoBehaviour
         Debug.Log("OnActivateDebugOverlay");
 
         Transform gameObjTransform = gameObj.transform;
-        Vector2 scale = new(
-            canvasRectTransform.rect.width / Screen.width,
-            canvasRectTransform.rect.height / Screen.height
-        );
-        Debug.Log(scale);
 
         // Convert the position of the game object to screen space
         Vector3 screenPos = Camera.main.WorldToScreenPoint(gameObjTransform.position);
 
         // Set the position of the UI element based on the game object's position in screen space
-        uiElement.anchoredPosition = new Vector2(
-            screenPos.x * scale.x,
-            screenPos.y * scale.y
-        );
+        uiElement.position = (Vector2)screenPos;    
 
     }
 

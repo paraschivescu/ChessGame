@@ -14480,7 +14480,7 @@ Canvas:
   m_OverrideSorting: 0
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
-  m_AdditionalShaderChannelsFlag: 0
+  m_AdditionalShaderChannelsFlag: 25
   m_SortingLayerID: 0
   m_SortingOrder: 0
   m_TargetDisplay: 0
@@ -14517,8 +14517,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 90bf7eb91d417b649b0c62ce99e03a0a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  cam: {fileID: 1506958142}
   uiElement: {fileID: 1330275744}
-  canvasRectTransform: {fileID: 1330275744}
+  canvasRectTransform: {fileID: 1271901410}
   gameObj: {fileID: 1890586234}
 --- !u!1 &1272337715
 GameObject:
@@ -26191,11 +26192,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3115495136947334000, guid: 5c23d4346f11b844f8ccde7b83511202, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 91.94
+      value: 91.93994
       objectReference: {fileID: 0}
     - target: {fileID: 3115495136947334000, guid: 5c23d4346f11b844f8ccde7b83511202, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 93.1
+      value: 93.099976
       objectReference: {fileID: 0}
     - target: {fileID: 3115495136947334000, guid: 5c23d4346f11b844f8ccde7b83511202, type: 3}
       propertyPath: m_LocalPosition.x
@@ -26227,11 +26228,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3115495136947334000, guid: 5c23d4346f11b844f8ccde7b83511202, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 753
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3115495136947334000, guid: 5c23d4346f11b844f8ccde7b83511202, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 305
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3115495136947334000, guid: 5c23d4346f11b844f8ccde7b83511202, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x

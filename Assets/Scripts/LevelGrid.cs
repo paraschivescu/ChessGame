@@ -61,7 +61,7 @@ public class LevelGrid : MonoBehaviour
     {
         foreach (ChessPiece cp in chessPiecesInPlay)
         {
-            if (cp.positionCoordsCurrent == t._tileCoords)
+            if (cp.gameObject.activeSelf == true && cp.positionCoordsCurrent == t._tileCoords)
             {
                 // there's a piece on this tile, return the piece
                 return cp;

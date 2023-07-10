@@ -15,7 +15,7 @@ public class GameController : MonoBehaviour
 {
 
     public LevelGrid _currentBoardState;
-    public Dictionary<ChessPiece,Tile> _savedChessPiecePositions;
+    public List <Dictionary<ChessPiece, Tile>> saveSlots;
     [SerializeField] private ChessPiece _chessPiece;
     [SerializeField] private GameStates _currentGameState;
 
@@ -34,7 +34,14 @@ public class GameController : MonoBehaviour
         // register events
         EventManager.TileClicked += OnTileClicked;
 
-        _savedChessPiecePositions = new Dictionary<ChessPiece, Tile>();
+
+        // create save slots
+        saveSlots = new();
+        for (int i=0; i < 3; i++)
+        {
+            Dictionary<ChessPiece, Tile> save = new();
+            saveSlots.Add(save);
+        }
     }
 
     private void OnTileClicked(Tile tile) {
@@ -79,23 +86,23 @@ public class GameController : MonoBehaviour
         }
     }
 
-    void SaveBoardState() 
+    void SaveBoardState(int saveSlot) 
     {
-        if (_savedChessPiecePositions.Count > 0 ) _savedChessPiecePositions.Clear();
+        // saves position for each chess piece
+        if (saveSlots[saveSlot].Count > 0 ) saveSlots[saveSlot].Clear();
         foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay) {
-            _savedChessPiecePositions.Add(cp, cp._currentTile);
+            if (cp.gameObject.activeSelf == true) {
+                saveSlots[saveSlot].Add(cp, cp._currentTile);
+            }
         }
-        Debug.Log(_savedChessPiecePositions.Count + "/" + _currentBoardState.chessPiecesInPlay.Count);
+//        Debug.Log(_savedChessPiecePositions.Count + "/" + _currentBoardState.chessPiecesInPlay.Count);
     }
 
-    void LoadBoardState()
+    void LoadBoardState(int saveSlot)
     {
-        Debug.Log("Loard Board State");
-        
-        _currentBoardState.chessPiecesInPlay.Clear();
-        foreach (var pos in _savedChessPiecePositions)
+        // Debug.Log("Loard Board State");
+        foreach (var pos in saveSlots[saveSlot])
         {
-            _currentBoardState.chessPiecesInPlay.Add(pos.Key);
             pos.Key.gameObject.SetActive(true);
 
             // set cp coords
@@ -137,14 +144,14 @@ public class GameController : MonoBehaviour
     private void CapturePiece(ChessPiece cp)
     {
         Debug.Log("Piece captured.");
-        _currentBoardState.chessPiecesInPlay.Remove(cp);
+        //_currentBoardState.chessPiecesInPlay.Remove(cp);
         cp.gameObject.SetActive(false);
 
         // and the tile reference on the cp
         cp._currentTile = null;
     }
 
-    private int EvaluateBoard(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction)
+    private int EvaluateBoardAndGetPossibleNextMoves(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction, ref List<Move> possibleNextMoves)
     {
         int captureScore = 0;
         int overwatchScore = 0;
@@ -152,7 +159,7 @@ public class GameController : MonoBehaviour
 
         foreach (ChessPiece cp in chessPiecesInPlay)
         {
-            if (cp.faction == faction)
+            if (cp.gameObject.activeSelf == true && cp.faction == faction)
             {
                 // see where CP can move to
                 List<Tile> validDestTiles = GetAbsoluteDestinationTiles(cp.type, cp._currentTile, true);
@@ -160,6 +167,13 @@ public class GameController : MonoBehaviour
                 // compute move score
                 foreach (Tile t in validDestTiles)
                 {
+
+                    Move mv = new()
+                    {
+                        chessPieceToMove = cp,
+                        tileDestination = t
+                    };
+                    possibleNextMoves.Add(mv);
 
                     // what is the immediate value of this tile being moved on?
                     // - the value of capturing a piece on this tile
@@ -174,19 +188,19 @@ public class GameController : MonoBehaviour
                     {
                         overwatchScore += overwatchedTile._overwatchScore;
 
-                    // - the "threat score", ie the value of being able to capture a piece in the future, ie. an enemy piece being capturable next turn if nothing changes
+                        // - the "threat score", ie the value of being able to capture a piece in the future, ie. an enemy piece being capturable next turn if nothing changes
                         if (_currentBoardState.GetChessPieceOnTile(overwatchedTile))
                         {
-                            threatScore += _currentBoardState.GetChessPieceOnTile(overwatchedTile)._captureScore;
+                           threatScore += (_currentBoardState.GetChessPieceOnTile(overwatchedTile)._captureScore / 5);
                         }
                     }
                 }
             }
         }
 
-        Debug.Log("Future: Capture/Overwatch/Threat: " + captureScore + "/" + overwatchScore + "/" + threatScore);
+        // Debug.Log("Future: Capture/Overwatch/Threat: " + captureScore + "/" + overwatchScore + "/" + threatScore);
         int boardScore = captureScore + overwatchScore + threatScore;
-        return boardScore;
+        return boardScore / 5;
     }
 
     private void PlayCPUTurn()
@@ -198,7 +212,7 @@ public class GameController : MonoBehaviour
         // calculate immediate value of each possible move this turn
         // create a move branch for each valid move and calculate expectation of future value in each branch
         foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay) {
-            if (cp.faction == GetFaction(true))  
+            if (cp.gameObject.activeSelf == true && cp.faction == GetFaction(true))  
             {
                 // see where CP can move to
                 List<Tile> validDestTiles = GetAbsoluteDestinationTiles(cp.type, cp._currentTile, true);
@@ -223,23 +237,43 @@ public class GameController : MonoBehaviour
                     List<Tile> overwatchedTilesOnNextMove = GetAbsoluteDestinationTiles(cp.type, t, true);
                     foreach (Tile overwatchedTile in overwatchedTilesOnNextMove)
                     {
-                        overwatchScore = overwatchedTile._overwatchScore;
+                        overwatchScore += overwatchedTile._overwatchScore;
 
                         // threat score
                         if (_currentBoardState.GetChessPieceOnTile(overwatchedTile))
                         {
-                            threatScore = _currentBoardState.GetChessPieceOnTile(overwatchedTile)._captureScore / 2; // divisor 2 is arbitrary. We'll need a good number for threat value, but it has to be less than capture value
+                            threatScore += (_currentBoardState.GetChessPieceOnTile(overwatchedTile)._captureScore / 5); // divisor is arbitrary. We'll need a good number for threat value, but it has to be less than capture
                         }
                     }
 
-                    Debug.Log("Root: Capture/Overwatch/Threat: " + captureScore + "/" + overwatchScore + "/" + threatScore);
+                    // Debug.Log("Root: Capture/Overwatch/Threat: " + captureScore + "/" + overwatchScore + "/" + threatScore);
                     mv.scoreOfMove = captureScore + overwatchScore + threatScore;
 
-                    moveBranches.Add(mv, mv.scoreOfMove); // this line should appear at the end of the branch) ; replace mv.scoreOfMove with branchScore after evaluating branch value
-                };
+                    // branch
+                    int branchScore = mv.scoreOfMove;
+                    { // start down the branch. currently the branch score only takses into account the active player's next possible moves
+                        SaveBoardState(1);
+                        PerformMove(mv);
+                        List<Move> possibleNextMoves = new();
+                        int boardScore = EvaluateBoardAndGetPossibleNextMoves(_currentBoardState.chessPiecesInPlay, GetFaction(true), ref possibleNextMoves);
+                        branchScore += boardScore;
 
-            }
-                    
+                        // second level down the branch
+                        foreach (Move mv2 in possibleNextMoves)
+                        {
+                            SaveBoardState(2);
+                            PerformMove(mv2);
+                            List<Move> possibleNextMoves2 = new();
+                            int boardScore2 = EvaluateBoardAndGetPossibleNextMoves(_currentBoardState.chessPiecesInPlay, GetFaction(true), ref possibleNextMoves2);
+                            branchScore += boardScore2;
+                            LoadBoardState(2);
+                        }
+
+                        LoadBoardState(1);
+                    }
+                    moveBranches.Add(mv, branchScore); // this line should appear at the end of the branch)
+                };
+            }  
         }
 
         var bestBranchRootMove = moveBranches.Aggregate((x, y) => x.Value > y.Value ? x : y).Key;
@@ -410,12 +444,18 @@ public class GameController : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.L))
         {
-            LoadBoardState();
+            LoadBoardState(0);
         }
 
         if (Input.GetKeyDown(KeyCode.S))
         {
-            SaveBoardState();
-        }        
+            SaveBoardState(0);
+        }
+
+        if (Input.GetKeyDown(KeyCode.D))
+        {
+            EventManager.RaiseDebugOverlayActivatedEvent();
+        }
+
     }
 }

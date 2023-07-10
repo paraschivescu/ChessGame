@@ -31,22 +31,22 @@ public class ChessPiece : MonoBehaviour
     {
         switch (type)
         {   case (ChessPieceType.Pawn):
-                _captureScore = 10;
+                _captureScore = 100;
             break;
             case (ChessPieceType.Knight):
-                _captureScore = 30;
+                _captureScore = 300;
             break;
             case (ChessPieceType.Bishop):
-                _captureScore = 30;
+                _captureScore = 300;
             break;
             case (ChessPieceType.Rook):
-                _captureScore = 50;
+                _captureScore = 500;
             break;
             case (ChessPieceType.Queen):
-                _captureScore = 90;
+                _captureScore = 900;
             break;
             case (ChessPieceType.King):
-                _captureScore = 1000;
+                _captureScore = 10000;
             break;                
         }
     }

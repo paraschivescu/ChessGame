@@ -144,81 +144,102 @@ public class GameController : MonoBehaviour
         cp._currentTile = null;
     }
 
-    private void PlayCPUTurn()
-    {   
-        // SaveBoardState();
-        // List<ChessPiece> initialChessPiecesInPlay = _boardState.chessPiecesInPlay;
+    private int EvaluateBoard(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction)
+    {
+        int captureScore = 0;
+        int overwatchScore = 0;
+        int threatScore = 0;
 
-        //const int DEPTH = 2;
-        // create list of move trees
-        Dictionary<Move, int> moveBranches = new(); // root move, total tree score
-
-//        SaveBoardState();
-        // iterate own pieces and create a move tree for each valid root move
-        foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay) {
-            if (cp.faction == GetFaction(true))
+        foreach (ChessPiece cp in chessPiecesInPlay)
+        {
+            if (cp.faction == faction)
             {
                 // see where CP can move to
                 List<Tile> validDestTiles = GetAbsoluteDestinationTiles(cp.type, cp._currentTile, true);
 
                 // compute move score
-                foreach (Tile t in validDestTiles) {                    
-                    int branchScore = 0;
-                    
+                foreach (Tile t in validDestTiles)
+                {
+
+                    // what is the immediate value of this tile being moved on?
+                    // - the value of capturing a piece on this tile
+                    if (_currentBoardState.GetChessPieceOnTile(t))
+                    {
+                        captureScore += _currentBoardState.GetChessPieceOnTile(t)._captureScore;
+                    }
+
+                    // - the overwatch value, that is the sum of the tile values of all tiles that a piece can "see" from this tile
+                    List<Tile> overwatchedTilesOnNextMove = GetAbsoluteDestinationTiles(cp.type, t, true);
+                    foreach (Tile overwatchedTile in overwatchedTilesOnNextMove)
+                    {
+                        overwatchScore += overwatchedTile._overwatchScore;
+
+                    // - the "threat score", ie the value of being able to capture a piece in the future, ie. an enemy piece being capturable next turn if nothing changes
+                        if (_currentBoardState.GetChessPieceOnTile(overwatchedTile))
+                        {
+                            threatScore += _currentBoardState.GetChessPieceOnTile(overwatchedTile)._captureScore;
+                        }
+                    }
+                }
+            }
+        }
+
+        Debug.Log("Future: Capture/Overwatch/Threat: " + captureScore + "/" + overwatchScore + "/" + threatScore);
+        int boardScore = captureScore + overwatchScore + threatScore;
+        return boardScore;
+    }
+
+    private void PlayCPUTurn()
+    {   
+        // create Dict of move trees
+        Dictionary<Move, int> moveBranches = new(); // root move, total tree score; The Root Move also contains a move score - that's the score of that first move, without accounting for future value of the branches that start with that move
+
+        // iterate own pieces
+        // calculate immediate value of each possible move this turn
+        // create a move branch for each valid move and calculate expectation of future value in each branch
+        foreach (ChessPiece cp in _currentBoardState.chessPiecesInPlay) {
+            if (cp.faction == GetFaction(true))  
+            {
+                // see where CP can move to
+                List<Tile> validDestTiles = GetAbsoluteDestinationTiles(cp.type, cp._currentTile, true);
+                foreach (Tile t in validDestTiles)
+                {
+                    int captureScore = 0;
+                    int overwatchScore = 0;
+                    int threatScore = 0;
+
                     Move mv = new()
                     {
                         chessPieceToMove = cp,
                         tileDestination = t
                     };
-
+                    // capture score
                     if (_currentBoardState.GetChessPieceOnTile(t))
                     {
-                        mv.scoreOfMove += _currentBoardState.GetChessPieceOnTile(t)._captureScore;
+                        captureScore = _currentBoardState.GetChessPieceOnTile(t)._captureScore;
                     }
 
-                    // TODO score of move should actually be the score of the board state; ie. should consider the overwatch reach of ALL pieces and not just the moved piece
-                    List<Tile> overwatchedTilesOnNextMove = GetAbsoluteDestinationTiles(cp.type, t, false);
+                    // overwatch score
+                    List<Tile> overwatchedTilesOnNextMove = GetAbsoluteDestinationTiles(cp.type, t, true);
                     foreach (Tile overwatchedTile in overwatchedTilesOnNextMove)
                     {
-                        mv.scoreOfMove += overwatchedTile._overwatchScore;
-                    }
-                    branchScore += mv.scoreOfMove;
+                        overwatchScore = overwatchedTile._overwatchScore;
 
-
-                    // perform each move and search further down the tree and keep adding to treeScore
-                    // the result will be a large dictionary with a lot of the same keys (the same root move) but different values; we will have to pick the root move with the highest value
-
-/*                    PerformMove(mv);
-                    foreach (ChessPiece cp2 in _currentBoardState.chessPiecesInPlay)
-                    {
-                        if (cp2.faction == GetFaction(false))
+                        // threat score
+                        if (_currentBoardState.GetChessPieceOnTile(overwatchedTile))
                         {
-                            List<Tile> validDestTiles2 = GetAbsoluteDestinationTiles(cp2.type, cp2._currentTile, true);
-                            foreach (Tile t2 in validDestTiles)
-                            {
-                                Move mv2 = new()
-                                {
-                                    chessPieceToMove = cp2,
-                                    tileDestination = t2
-                                };
-
-                                if (t2._chessPiece)
-                                {
-                                    mv2.scoreOfMove -= t2._chessPiece._captureScore;
-                                }
-                                List<Tile> overwatchedTilesOnNextMove2 = GetAbsoluteDestinationTiles(cp.type, t, false);
-                                foreach (Tile overwatchedTile in overwatchedTilesOnNextMove)
-                                {
-                                    mv2.scoreOfMove -= overwatchedTile._overwatchScore;
-                                }
-                                branchScore -= mv2.scoreOfMove;
-                            }
+                            threatScore = _currentBoardState.GetChessPieceOnTile(overwatchedTile)._captureScore / 2; // divisor 2 is arbitrary. We'll need a good number for threat value, but it has to be less than capture value
                         }
                     }
-                    LoadBoardState();*/
-                    moveBranches.Add(mv, branchScore); // this line should appear at the end of the branch)
-                }
+
+                    Debug.Log("Root: Capture/Overwatch/Threat: " + captureScore + "/" + overwatchScore + "/" + threatScore);
+                    mv.scoreOfMove = captureScore + overwatchScore + threatScore;
+
+                    moveBranches.Add(mv, mv.scoreOfMove); // this line should appear at the end of the branch) ; replace mv.scoreOfMove with branchScore after evaluating branch value
+                };
+
             }
+                    
         }
 
         var bestBranchRootMove = moveBranches.Aggregate((x, y) => x.Value > y.Value ? x : y).Key;

@@ -18,6 +18,7 @@ public class GameController : MonoBehaviour
     public List <Dictionary<ChessPiece, Tile>> saveSlots;
     [SerializeField] private ChessPiece _chessPiece;
     [SerializeField] private GameStates _currentGameState;
+    private UIController _ui;
 
     private enum GameStates
     {
@@ -28,6 +29,9 @@ public class GameController : MonoBehaviour
 
     private void Start()
     {
+        // get references to other scripts
+        _ui = FindObjectOfType<UIController>();
+
         // set initial game state
         _currentGameState = GameStates.SelectChessPieceToMove;
         
@@ -171,7 +175,8 @@ public class GameController : MonoBehaviour
                     Move mv = new()
                     {
                         chessPieceToMove = cp,
-                        tileDestination = t
+                        tileDestination = t,
+                        scoreOfMove = 0
                     };
                     possibleNextMoves.Add(mv);
 
@@ -179,6 +184,7 @@ public class GameController : MonoBehaviour
                     // - the value of capturing a piece on this tile
                     if (_currentBoardState.GetChessPieceOnTile(t))
                     {
+                        mv.scoreOfMove += captureScore;
                         captureScore += _currentBoardState.GetChessPieceOnTile(t)._captureScore;
                     }
 
@@ -186,11 +192,13 @@ public class GameController : MonoBehaviour
                     List<Tile> overwatchedTilesOnNextMove = GetAbsoluteDestinationTiles(cp.type, t, true);
                     foreach (Tile overwatchedTile in overwatchedTilesOnNextMove)
                     {
+                        mv.scoreOfMove += captureScore;
                         overwatchScore += overwatchedTile._overwatchScore;
 
                         // - the "threat score", ie the value of being able to capture a piece in the future, ie. an enemy piece being capturable next turn if nothing changes
                         if (_currentBoardState.GetChessPieceOnTile(overwatchedTile))
                         {
+                           mv.scoreOfMove += captureScore;
                            threatScore += (_currentBoardState.GetChessPieceOnTile(overwatchedTile)._captureScore / 5);
                         }
                     }
@@ -442,6 +450,23 @@ public class GameController : MonoBehaviour
 
     void Update()
     {
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            List<Move> possibleNextMoves = new();            
+            int boardScore = EvaluateBoardAndGetPossibleNextMoves(_currentBoardState.chessPiecesInPlay, GetFaction(false), ref possibleNextMoves);
+            _ui.DisplayPossibleMoveScores(boardScore, possibleNextMoves);
+        }
+
+        if (Input.GetKeyDown(KeyCode.Alpha1))
+        {
+            LoadBoardState(1);
+        }
+
+        if (Input.GetKeyDown(KeyCode.Alpha1))
+        {
+            LoadBoardState(2);
+        }
+
         if (Input.GetKeyDown(KeyCode.L))
         {
             LoadBoardState(0);

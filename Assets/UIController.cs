@@ -4,30 +4,33 @@ using UnityEngine;
 
 public class UIController : MonoBehaviour
 {
-    public Camera cam;
     public RectTransform uiElement;
     public RectTransform canvasRectTransform;
     public GameObject gameObj;
 
-    // Start is called before the first frame update
+    private LevelGrid levelGrid;
+    [SerializeField] private Transform debugLayerParent;    
+    
     void Start()
     {
-        EventManager.ActivatedDebugOverlay += OnActivatedDebugOverlay;
+        EventManager.ToggleDebugOverlay += OnToggleDebugOverlay;
+        levelGrid = FindObjectOfType<LevelGrid>();
 
+        foreach (Tile t in levelGrid.tiles)
+        {
+            Vector3 tileScreenSpacePosition = Camera.main.WorldToScreenPoint(t.transform.position);
+            RectTransform uiTileScore = Instantiate(uiElement, tileScreenSpacePosition, Quaternion.identity, debugLayerParent);
+        }
     }
 
-    void OnActivatedDebugOverlay()
+    public void DisplayPossibleMoveScores(int currentBoardScore, List<Move> moves)
     {
-        Debug.Log("OnActivateDebugOverlay");
-
-        Transform gameObjTransform = gameObj.transform;
-
-        // Convert the position of the game object to screen space
-        Vector3 screenPos = Camera.main.WorldToScreenPoint(gameObjTransform.position);
-
-        // Set the position of the UI element based on the game object's position in screen space
-        uiElement.position = (Vector2)screenPos;    
-
+        Debug.Log(currentBoardScore);
     }
 
+    void OnToggleDebugOverlay()
+    {
+        if (debugLayerParent.gameObject.activeSelf == false) debugLayerParent.gameObject.SetActive(true); else
+        if (debugLayerParent.gameObject.activeSelf == true) debugLayerParent.gameObject.SetActive(false);
+    }
 }

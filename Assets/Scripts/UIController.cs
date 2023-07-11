@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using TMPro;
 
 public class UIController : MonoBehaviour
 {
@@ -23,9 +24,25 @@ public class UIController : MonoBehaviour
         }
     }
 
-    public void DisplayPossibleMoveScores(int currentBoardScore, List<Move> moves)
+    void DestroyDebugStickers()
     {
-        Debug.Log(currentBoardScore);
+
+        foreach (Transform transform in debugLayerParent)
+        {
+            UnityEngine.Object.Destroy(transform.gameObject);
+        }
+    }
+
+    public void DisplayMoveScores(List<Move> moves)
+    {
+        DestroyDebugStickers();
+        foreach (Move mv in moves)
+        {
+            Vector3 tileScreenSpacePosition = Camera.main.WorldToScreenPoint(mv.tileDestination.transform.position);
+            var sticker = Instantiate(uiElement, tileScreenSpacePosition, Quaternion.identity, debugLayerParent);
+            sticker.gameObject.GetComponent<TextMeshProUGUI>().SetText(mv.scoreOfMove.ToString());
+        }
+        
     }
 
     void OnToggleDebugOverlay()

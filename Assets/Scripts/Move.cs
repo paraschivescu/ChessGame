@@ -8,5 +8,4 @@ public class Move
     public Tile tileDestination;
     public int scoreOfMove = 0;
     public bool ownMove = true;
-    public List<Move> subsequentMoves;
 }

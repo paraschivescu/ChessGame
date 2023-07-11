@@ -46,7 +46,7 @@ public class ChessPiece : MonoBehaviour
                 _captureScore = 900;
             break;
             case (ChessPieceType.King):
-                _captureScore = 10000;
+                _captureScore = 1000;
             break;                
         }
     }

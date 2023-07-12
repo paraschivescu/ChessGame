@@ -72,7 +72,7 @@ public class GameController : MonoBehaviour
             if (_currentBoardState.GetChessPieceOnTile(tile)) { // even though we've already selected a piece to move, we've clicked on a tile occupied by another chess piece
                 // depending on the faction, we need to either capture the piece or select it (if it's one of ours)
                 ChessPiece _otherChessPiece = _currentBoardState.GetChessPieceOnTile(tile);
-                if (_otherChessPiece.faction == GetFaction(true)) {
+                if (_otherChessPiece.faction == ChessPieceFaction.White) {
                     HighlightValidMoves(_chessPiece, false); // remove the highlight for the legal moves of the old selected cp
                     _chessPiece = _currentBoardState.GetChessPieceOnTile(tile); // select the new cp
                     HighlightValidMoves(_chessPiece, true); 
@@ -212,20 +212,13 @@ public class GameController : MonoBehaviour
         return boardScore;
     }
 
-    private List<Move> GetPossibleNextMoves(List<ChessPiece> chessPiecesInPlay)
-    {
-        List<Move> moves = new();
-        EvaluateBoardAndGetPossibleNextMoves(chessPiecesInPlay, GetFaction(true), ref moves);
-        return moves;
-    }
-
-    private List<Move> GetPossibleNextMovesConsideringFuture(List<ChessPiece> chessPiecesInPlay)
+    private List<Move> GetPossibleNextMovesConsideringFuture(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction)
     {
         Dictionary<Move, int> moveBranches = new(); // root move, total tree score; The Root Move also contains a move score - that's the score of that first move, without accounting for future value of the branches that start with that move
 
         // first level: root
         List<Move> rootMoves = new();
-        int initialBoardScore = EvaluateBoardAndGetPossibleNextMoves(chessPiecesInPlay, GetFaction(true), ref rootMoves);
+        int initialBoardScore = EvaluateBoardAndGetPossibleNextMoves(chessPiecesInPlay, faction, ref rootMoves);
         int boardScore;
         int branchScore;
         // second level > starting branches
@@ -236,7 +229,7 @@ public class GameController : MonoBehaviour
             SaveBoardState(1);
             PerformMove(mv);
             List<Move> possibleNextMoves = new();
-            boardScore = EvaluateBoardAndGetPossibleNextMoves(chessPiecesInPlay, GetFaction(false), ref possibleNextMoves);
+            boardScore = EvaluateBoardAndGetPossibleNextMoves(chessPiecesInPlay, faction, ref possibleNextMoves);
             branchScore -= boardScore;
             
             // third level 
@@ -254,6 +247,9 @@ public class GameController : MonoBehaviour
             moveBranches.Add(mv, branchScore); // this line should appear at the end of the branch)
         }
 
+        // var bestBranchRootMove = moveBranches.Aggregate((x, y) => x.Value > y.Value ? x : y).Key;
+        // return bestBranchRootMove;
+
         // copy branch score to Move root score
         List<Move> movesList = new();
         foreach (var branch in moveBranches)
@@ -265,61 +261,14 @@ public class GameController : MonoBehaviour
         return movesList;
     }
 
-    private Move GetBestNextMove()
-    {
-        // create Dict of move trees
-        Dictionary<Move, int> moveBranches = new(); // root move, total tree score; The Root Move also contains a move score - that's the score of that first move, without accounting for future value of the branches that start with that move
-
-        int branchScore = 0;
-        List<Move> rootMoves = new();
-        EvaluateBoardAndGetPossibleNextMoves(_currentBoardState.chessPiecesInPlay, GetFaction(true), ref rootMoves); 
-        foreach (Move mv in rootMoves)
-        {
-            SaveBoardState(1);
-            PerformMove(mv);
-            List<Move> possibleNextMoves = new();
-            int boardScore = EvaluateBoardAndGetPossibleNextMoves(_currentBoardState.chessPiecesInPlay, GetFaction(true), ref possibleNextMoves);
-            branchScore += boardScore;
-
-            /* //second level down the branch
-            foreach (Move mv2 in possibleNextMoves)
-            {
-                SaveBoardState(2);
-                PerformMove(mv2);
-                List<Move> possibleNextMoves2 = new();
-                int boardScore2 = EvaluateBoardAndGetPossibleNextMoves(_currentBoardState.chessPiecesInPlay, GetFaction(true), ref possibleNextMoves2);
-                branchScore += boardScore2;
-                LoadBoardState(2);
-            }*/
-
-            LoadBoardState(1);
-            moveBranches.Add(mv, branchScore); // this line should appear at the end of the branch)
-        }
-
-        var bestBranchRootMove = moveBranches.Aggregate((x, y) => x.Value > y.Value ? x : y).Key;
-        return bestBranchRootMove;
-    }
-
     private void PlayCPUTurn()
     {   
-
-        Move CPUMove = GetBestNextMove();
-        PerformMove(CPUMove);
+        List<Move> possibleMoves = GetPossibleNextMovesConsideringFuture(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.Zombie);
+        possibleMoves.Sort((x, y) => y.scoreOfMove.CompareTo(x.scoreOfMove));
+        PerformMove(possibleMoves[0]);
 
         // end turn
         _currentGameState = GameStates.SelectChessPieceToMove;
-    }
-
-    private ChessPieceFaction GetFaction(bool ownFaction)
-    {
-        if (ownFaction) {
-            if (_currentGameState == GameStates.SelectChessPieceToMove || _currentGameState == GameStates.MoveSelectedChessPiece) return ChessPieceFaction.White;
-            if (_currentGameState == GameStates.CPUTurn) return ChessPieceFaction.Zombie;
-        } else {
-            if (_currentGameState == GameStates.SelectChessPieceToMove || _currentGameState == GameStates.MoveSelectedChessPiece) return ChessPieceFaction.Zombie;
-            if (_currentGameState == GameStates.CPUTurn) return ChessPieceFaction.White;
-        }
-        return ChessPieceFaction.Neutral;
     }
 
     private List<Tile> GetAbsoluteDestinationTiles(ChessPieceType cpType, Tile startingTile, ChessPieceFaction faction)
@@ -471,14 +420,14 @@ public class GameController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.W))
         {
             List<Move> whatever = new();
-            int white = EvaluateBoardAndGetPossibleNextMoves(_currentBoardState.chessPiecesInPlay, GetFaction(true), ref whatever);
-            int black = EvaluateBoardAndGetPossibleNextMoves(_currentBoardState.chessPiecesInPlay, GetFaction(false), ref whatever);
+            int white = EvaluateBoardAndGetPossibleNextMoves(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.White, ref whatever);
+            int black = EvaluateBoardAndGetPossibleNextMoves(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.Zombie, ref whatever);
             Debug.Log("White: " + white + "/ Black: " + black);
         }
 
         if (Input.GetKeyDown(KeyCode.E))
         {
-            _ui.DisplayMoveScores(GetPossibleNextMovesConsideringFuture(_currentBoardState.chessPiecesInPlay));
+            _ui.DisplayMoveScores(GetPossibleNextMovesConsideringFuture(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.White));
         }
 
         if (Input.GetKeyDown(KeyCode.Alpha1))

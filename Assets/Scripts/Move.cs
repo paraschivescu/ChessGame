@@ -6,6 +6,9 @@ public class Move
 {
     public ChessPiece chessPieceToMove;
     public Tile tileDestination;
-    public int scoreOfMove = 0;
+    public int scoreOfMove;
+    public int scoreOverwatch;
+    public int scoreCapture;
+    public int scoreThreat;
     public bool ownMove = true;
 }

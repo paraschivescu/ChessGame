@@ -10,5 +10,4 @@ public class Move
     public int scoreOverwatch;
     public int scoreCapture;
     public int scoreThreat;
-    public bool ownMove = true;
 }

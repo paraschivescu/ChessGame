@@ -6,7 +6,6 @@ using UnityEditor;
 
 public struct SavedChessPiecePosition 
 {
-    public ChessPiece chessPiece;
     public Tile tile;
     public bool activeState;
 }
@@ -143,15 +142,21 @@ public class GameController : MonoBehaviour
         cp._currentTile = null;
     }
 
-    private int GetTotalScoreOfMovesList(List<Move> moves)
+    private int CalculateBoardScore(List<ChessPiece> chessPiecesInPlay)
     {
-        int score = 0;
-        foreach (Move mv in moves)
+
+//        var boardScores = new List<int>(3);
+//        int piecesScore;
+        int boardScore = 0;
+
+        foreach (ChessPiece cp in chessPiecesInPlay)
         {
-            score += mv.scoreOfMove;
+            boardScore += cp._captureScore;
         }
-        return score;
+        return boardScore;
     }
+
+
 
     private List<Move> GetMovesListForFaction(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction)
     {
@@ -167,7 +172,6 @@ public class GameController : MonoBehaviour
                 // compute move score
                 foreach (Tile t in validDestTiles)
                 {
-
                     Move mv = new()
                     {
                         chessPieceToMove = cp,
@@ -196,16 +200,13 @@ public class GameController : MonoBehaviour
                             mv.scoreThreat += _currentBoardState.GetChessPieceOnTile(overwatchedTile)._captureScore / 5;
                         }
                     }
-
                     mv.scoreOfMove += mv.scoreThreat;
                     mv.scoreOfMove += mv.scoreOverwatch;
                 }
             }
         }
-
         return possibleNextMoves;
     }
-
 
     private int EvaluateBoardAndGetPossibleNextMoves(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction, ref List<Move> possibleNextMoves)
     {
@@ -278,6 +279,8 @@ public class GameController : MonoBehaviour
     private List<Move> GetPossibleNextMovesConsideringFuture(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction)
     {
         Dictionary<Move, int> moveBranches = new(); // root move, total tree score; The Root Move also contains a move score - that's the score of that first move, without accounting for future value of the branches that start with that move
+        // WARNING, dictionaries dont allow inserting the smae key twice
+
 
         // first level: root
         List<Move> rootMoves = GetMovesListForFaction(chessPiecesInPlay, faction);
@@ -286,27 +289,28 @@ public class GameController : MonoBehaviour
         // second level > starting branches
         foreach (Move mv in rootMoves)
         {
-            int branchScore = mv.scoreOfMove;
+            int branchScore = 0;
             SaveBoardState(1);
             PerformMove(mv);
             List<Move> possibleOpponentMoves = GetMovesListForFaction(chessPiecesInPlay, GetOtherFaction(faction));
-            LoadBoardState(1);
             possibleOpponentMoves.Sort((x, y) => y.scoreOfMove.CompareTo(x.scoreOfMove));
-            branchScore -= possibleOpponentMoves[0].scoreOfMove;
-
+            //branchScore -= possibleOpponentMoves[0].scoreOfMove;
             // third level 
             foreach (Move mv2 in possibleOpponentMoves)
             {
-                branchScore += mv.scoreOfMove;
+//                branchScore += mv.scoreOfMove;
                 SaveBoardState(2);
                 PerformMove(mv2);
-                List<Move> possibleOpponentMoves2 = GetMovesListForFaction(chessPiecesInPlay, GetOtherFaction(faction));
+//                List<Move> possibleOpponentMoves2 = GetMovesListForFaction(chessPiecesInPlay, GetOtherFaction(faction));
+                int bs = GetBoardScoreForFaction(faction);
+                if (bs > branchScore) branchScore = bs;
                 LoadBoardState(2);
-                possibleOpponentMoves2.Sort((x, y) => y.scoreOfMove.CompareTo(x.scoreOfMove));
-                branchScore -= possibleOpponentMoves2[0].scoreOfMove;
+//                possibleOpponentMoves2.Sort((x, y) => y.scoreOfMove.CompareTo(x.scoreOfMove));
+//                branchScore -= possibleOpponentMoves2[0].scoreOfMove;
             }
-
             moveBranches.Add(mv, branchScore); // this line should appear at the end of the branch)
+
+            LoadBoardState(1);
         }
 
         // var bestBranchRootMove = moveBranches.Aggregate((x, y) => x.Value > y.Value ? x : y).Key;
@@ -323,6 +327,94 @@ public class GameController : MonoBehaviour
         return movesList;
     }
 
+    private int EvaluateBoard(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction) 
+    {
+        int boardScore = 0;
+        foreach (ChessPiece cp in chessPiecesInPlay)
+        {
+            if (cp.gameObject.activeSelf == true)
+            {
+                if(cp.faction == faction)
+                {
+                    // use "living" pieces and occupied tiles as the metrics of success
+                    boardScore += cp._captureScore;
+                    boardScore += cp._currentTile._overwatchScore;
+                } else {
+                    boardScore -= cp._captureScore;
+                    boardScore -= cp._currentTile._overwatchScore; 
+                }
+            }
+        }
+        return boardScore;
+    }
+
+    private List<Move> PerformMovesRecursivelyAndGetMovesList(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction)
+    {
+        int initialBoardScore = EvaluateBoard(chessPiecesInPlay, faction);
+
+        List<(Move, int)> branches = new(); // root move, board score (enemy)
+        List<Move> rootMoves = GetNextMovesList(chessPiecesInPlay, faction);
+        foreach (Move mv in rootMoves)
+        {
+            SaveBoardState(1);
+            PerformMove(mv);
+
+            List<Move> opponentMoves = GetNextMovesList(chessPiecesInPlay, GetOtherFaction(faction));
+            foreach (Move oppMv in opponentMoves)
+            {
+                SaveBoardState(2);
+                PerformMove(oppMv);
+                oppMv.scoreOfMove = EvaluateBoard(chessPiecesInPlay, GetOtherFaction(faction));
+                LoadBoardState(2);
+            }
+
+            opponentMoves.Sort((x, y) => y.scoreOfMove.CompareTo(x.scoreOfMove));
+            Move bestOpponentMove = opponentMoves[0];
+            mv.scoreOfMove = -bestOpponentMove.scoreOfMove;
+
+            //branches.Add((mv, opponentMoves[0].scoreOfMove));  // assume opponent makes the best possible move and add that
+            LoadBoardState(1);
+        }
+
+
+        return rootMoves;
+    }
+
+    private List<Move> GetNextMovesList(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction)
+    {
+
+        // create next moves list
+        List<Move> possibleNextMoves = new();
+        foreach (ChessPiece cp in chessPiecesInPlay)
+        {
+            if (cp.gameObject.activeSelf == true && cp.faction == faction)
+            {
+                List<Tile> validDestTiles = GetAbsoluteDestinationTiles(cp.type, cp._currentTile, cp.faction);
+
+                foreach (Tile t in validDestTiles)
+                {
+                    Move mv = new()
+                    {
+                        chessPieceToMove = cp,
+                        tileDestination = t
+                    };
+                    possibleNextMoves.Add(mv);
+                }
+            }
+        }
+        return possibleNextMoves;
+    }
+
+    private int GetTotalScoreOfMovesList(List<Move> moves)
+    {
+        int score = 0;
+        foreach (Move mv in moves)
+        {
+            score += mv.scoreOfMove;
+        }
+        return score;
+    }
+
     private int GetBoardScoreForFaction(ChessPieceFaction faction)// List<Move>thisFactionMoves, List<Move>otherFactionMoves)
     {
         List<Move> thisFactionMoves = GetMovesListForFaction(_currentBoardState.chessPiecesInPlay, faction);
@@ -333,8 +425,9 @@ public class GameController : MonoBehaviour
     }
 
     private void PlayCPUTurn()
-    {   
-        List<Move> possibleMoves = GetPossibleNextMovesConsideringFuture(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.Zombie);
+    {
+        // List<Move> possibleMoves = GetPossibleNextMovesConsideringFuture(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.Zombie);
+        List<Move> possibleMoves = PerformMovesRecursivelyAndGetMovesList(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.Zombie);
         possibleMoves.Sort((x, y) => y.scoreOfMove.CompareTo(x.scoreOfMove));
         PerformMove(possibleMoves[0]);
 
@@ -483,7 +576,8 @@ public class GameController : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.D))
         {
-            _ui.DisplayMoveScores(GetPossibleNextMovesConsideringFuture(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.White));
+            _ui.DisplayMoveScores(PerformMovesRecursivelyAndGetMovesList(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.White));
+            //_ui.DisplayMoveScores(GetPossibleNextMovesConsideringFuture(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.White));
         }
 
         if (Input.GetKeyDown(KeyCode.F))
@@ -507,7 +601,7 @@ public class GameController : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.T))
         {
-            Debug.Log(GetBoardScoreForFaction(ChessPieceFaction.White));
+            Debug.Log(EvaluateBoard(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.White));
         }
 
 

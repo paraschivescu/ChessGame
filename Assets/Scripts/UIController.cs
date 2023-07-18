@@ -15,13 +15,13 @@ public class UIController : MonoBehaviour
     void Start()
     {
         EventManager.ToggleDebugOverlay += OnToggleDebugOverlay;
-        levelGrid = FindObjectOfType<LevelGrid>();
+/*        levelGrid = FindObjectOfType<LevelGrid>();
 
         foreach (Tile t in levelGrid.tiles)
         {
             Vector3 tileScreenSpacePosition = Camera.main.WorldToScreenPoint(t.transform.position);
             RectTransform uiTileScore = Instantiate(uiElement, tileScreenSpacePosition, Quaternion.identity, debugLayerParent);
-        }
+        }*/
     }
 
     void DestroyDebugStickers()

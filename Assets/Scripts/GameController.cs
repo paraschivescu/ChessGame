@@ -23,7 +23,8 @@ public class GameController : MonoBehaviour
     {
         SelectChessPieceToMove,
         MoveSelectedChessPiece,
-        CPUTurn
+        CPUTurn,
+        GameOver
     }
 
     private void Start()
@@ -40,7 +41,7 @@ public class GameController : MonoBehaviour
 
         // create save slots
         saveSlots = new();
-        for (int i=0; i < 3; i++)
+        for (int i=0; i < 10; i++)
         {
             Dictionary<ChessPiece, Tile> save = new();
             saveSlots.Add(save);
@@ -125,10 +126,10 @@ public class GameController : MonoBehaviour
         
     }
 
-    private void PerformMove(Move mv, bool capture=true)
+    private void PerformMove(Move mv)
     {
-        // if there's a piece to the dest tile, and we're not calling this with the "false" flag from LoadBoardState, then capture it
-        if (capture && _currentBoardState.GetChessPieceOnTile(mv.tileDestination)) CapturePiece(_currentBoardState.GetChessPieceOnTile(mv.tileDestination));
+        if (mv == null) return;
+        if (_currentBoardState.GetChessPieceOnTile(mv.tileDestination)) CapturePiece(_currentBoardState.GetChessPieceOnTile(mv.tileDestination));
 
         mv.chessPieceToMove.positionCoordsCurrent = mv.tileDestination._tileCoords;
         mv.chessPieceToMove.transform.position = new Vector3(mv.tileDestination.transform.position.x, mv.tileDestination.transform.position.y, transform.position.z);
@@ -315,6 +316,54 @@ public class GameController : MonoBehaviour
             return boardScore;
         }
 
+
+    private List<ChessPiece> GetChildPositions(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction)
+    {
+        foreach (ChessPiece cp in chessPiecesInPlay)
+        {
+            if (cp.gameObject.activeSelf == true && cp.faction == faction)
+            {
+                List<Tile> validDestTiles = GetAbsoluteDestinationTiles(cp.type, cp._currentTile, cp.faction);
+                if (validDestTiles.Count == 0) return null;
+
+                foreach (Tile t in validDestTiles)
+                {
+                    // move cp to new destination, take a snapshot and then undo the move. save snapshot to list
+                    Vector2Int positionCoordsOld = cp.positionCoordsCurrent;
+                    Tile oldTile = cp._currentTile;
+
+                    Tile capturedPieceOldTile = new();
+                    ChessPiece cpToBeCaptured = _currentBoardState.GetChessPieceOnTile(t);
+                    if (cpToBeCaptured) 
+                    {
+                        capturedPieceOldTile = t;
+                        cpToBeCaptured.gameObject.SetActive(false);
+                        cpToBeCaptured._currentTile = null;
+                    }
+                    cp.positionCoordsCurrent = t._tileCoords;
+                    cp._currentTile = t;
+
+                    // take snapshot (save position)
+                    
+
+
+                    // uncapture
+                    if (cpToBeCaptured)
+                    {
+                        cpToBeCaptured.gameObject.SetActive(true);
+                        cpToBeCaptured._currentTile = capturedPieceOldTile;
+                    }
+
+                    // move back
+                    cp.positionCoordsCurrent = positionCoordsOld;
+                    cp._currentTile = oldTile;
+
+                }
+            }
+        }
+        return chessPiecesInPlay;
+    }
+
     */
 
     private ChessPieceFaction GetOtherFaction(ChessPieceFaction thisFaction)
@@ -324,7 +373,13 @@ public class GameController : MonoBehaviour
         return ChessPieceFaction.Neutral;
     }
 
-    private int EvaluateBoard(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction) 
+    private void GameOver()
+    {
+        Debug.Log("Game Over"); 
+        _currentGameState = GameStates.GameOver;
+    }
+
+    private int EvaluateBoardForFaction(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction) 
     {
         int boardScore = 0;
         foreach (ChessPiece cp in chessPiecesInPlay)
@@ -345,9 +400,34 @@ public class GameController : MonoBehaviour
         return boardScore;
     }
 
+    private int EvaluateBoard(List<ChessPiece> chessPiecesInPlay)
+    {
+        int boardScore = 0;
+        foreach (ChessPiece cp in chessPiecesInPlay)
+        {
+            if (cp.gameObject.activeSelf == true)
+            {
+                if (cp.faction == ChessPieceFaction.White)
+                {
+                    // use "living" pieces and occupied tiles as the metrics of success
+                    boardScore += cp._captureScore;
+                    boardScore += cp._currentTile._overwatchScore;
+                }
+                else if (cp.faction == ChessPieceFaction.Zombie)
+                {
+                    boardScore -= cp._captureScore;
+                    boardScore -= cp._currentTile._overwatchScore;
+                }
+            }
+        }
+        return boardScore;
+    }
+
     private Move GetBestMoveOfFaction(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction)
     {
         List<Move> opponentMoves = GetNextMovesList(chessPiecesInPlay, faction);
+        if (opponentMoves.Count == 0) return null;
+
         Move oppMvBest = new()
         {
             scoreOfMove = -99999
@@ -357,7 +437,7 @@ public class GameController : MonoBehaviour
         {
             SaveBoardState(1);
             PerformMove(oppMv);
-            oppMv.scoreOfMove = EvaluateBoard(chessPiecesInPlay, faction);
+            oppMv.scoreOfMove = EvaluateBoardForFaction(chessPiecesInPlay, faction);
             if (oppMv.scoreOfMove > oppMvBest.scoreOfMove) oppMvBest = oppMv;
             LoadBoardState(1);
         }
@@ -367,56 +447,34 @@ public class GameController : MonoBehaviour
 
     private List<Move> PerformMovesRecursivelyAndGetMovesList(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction)
     {
-        int initialBoardScore = EvaluateBoard(chessPiecesInPlay, faction);
-
-        List<(Move, int)> branches = new(); // root move, board score (enemy)
         List<Move> rootMoves = GetNextMovesList(chessPiecesInPlay, faction);
+        if ((rootMoves).Count == 0) return null;
         foreach (Move mv in rootMoves)
         {
             SaveBoardState(0);
             PerformMove(mv);
 
             Move mv2 = GetBestMoveOfFaction(chessPiecesInPlay, GetOtherFaction(faction));
-            PerformMove(mv2);
+/*            PerformMove(mv2);
 
             Move mv3 = GetBestMoveOfFaction(chessPiecesInPlay, faction);
             PerformMove(mv3);
 
             Move mv4 = GetBestMoveOfFaction(chessPiecesInPlay, GetOtherFaction(faction));
-/*          PerformMove(mv4);
-
-            Move mv5 = GetBestMoveOfFaction(chessPiecesInPlay, faction);
-            PerformMove(mv5);
-
-            Move mv6 = GetBestMoveOfFaction(chessPiecesInPlay, GetOtherFaction(faction));
-            PerformMove(mv6);
-
-            Move mv7 = GetBestMoveOfFaction(chessPiecesInPlay, faction);
-            PerformMove(mv7);
-
-            Move mv8 = GetBestMoveOfFaction(chessPiecesInPlay, GetOtherFaction(faction));
-//            PerformMove(mv8);
-
-            Move mv9 = GetBestMoveOfFaction(chessPiecesInPlay, faction);
-            PerformMove(mv9);
-
-            Move mv10 = GetBestMoveOfFaction(chessPiecesInPlay, GetOtherFaction(faction));*/
-
-            mv.scoreOfMove = -mv4.scoreOfMove;
+*/
+            if (mv2 != null) mv.scoreOfMove = -mv2.scoreOfMove; else mv.scoreOfMove = 100000;
 
             //branches.Add((mv, opponentMoves[0].scoreOfMove));  // assume opponent makes the best possible move and add that
             LoadBoardState(0);
         }
-
-
         return rootMoves;
     }
 
+
     private List<Move> GetNextMovesList(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction)
     {
-
         // create next moves list
-        List<Move> possibleNextMoves = new();
+        List<Move> possibleNextMoves = new();   
         foreach (ChessPiece cp in chessPiecesInPlay)
         {
             if (cp.gameObject.activeSelf == true && cp.faction == faction)
@@ -437,16 +495,110 @@ public class GameController : MonoBehaviour
         return possibleNextMoves;
     }
 
+    /* 
 
+    ============ MINIMAX STUFF ==============
+
+    */
+
+    public List<Move> MinimaxGetMoveScores(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction)
+    {
+        List<Move> possibleNextMoves = GetNextMovesList(chessPiecesInPlay, faction);
+        foreach (Move mv in possibleNextMoves)
+        {
+//            SaveBoardState(0);
+//            PerformMove(mv);
+            mv.scoreOfMove = MiniMax(chessPiecesInPlay, 3, faction);
+//            LoadBoardState(0);
+        }
+        return possibleNextMoves;
+    }
+
+
+    public Move MinimaxGetBestMove(List<ChessPiece> chessPiecesInPlay, ChessPieceFaction faction)
+    {
+        int bestScore = 0;
+        if (faction == ChessPieceFaction.White) bestScore = int.MinValue;
+        else if (faction == ChessPieceFaction.Zombie) bestScore = int.MaxValue;
+
+        Move bestMove = null;
+        int score;
+        List<Move> possibleNextMoves = GetNextMovesList(chessPiecesInPlay, faction);
+        foreach (Move mv in possibleNextMoves)
+        {
+            SaveBoardState(0);
+            PerformMove(mv);
+            score = MiniMax(chessPiecesInPlay, 3, faction);
+
+            if (faction == ChessPieceFaction.White && score > bestScore)
+            {
+                bestScore = score;
+                bestMove = mv;
+            }
+
+            else if (faction == ChessPieceFaction.Zombie && score < bestScore)
+            {
+                bestScore = score;
+                bestMove = mv;
+            }
+            
+            LoadBoardState(0);
+        }
+        return bestMove;
+    }
+
+    private int MiniMax(List<ChessPiece> chessPiecesInPlay, int depth, ChessPieceFaction faction)
+    {
+        if (depth == 0 || _currentGameState == GameStates.GameOver) {
+            return EvaluateBoard(chessPiecesInPlay);
+        }
+
+        if (faction == ChessPieceFaction.White) {
+            int maxEval = int.MinValue;
+            List<Move> possibleNextMoves = GetNextMovesList(chessPiecesInPlay, faction);
+            foreach (Move mv in possibleNextMoves)
+            {
+                SaveBoardState(depth);
+                PerformMove(mv);
+                    int eval = MiniMax(chessPiecesInPlay, depth - 1, ChessPieceFaction.Zombie);
+                    maxEval = Mathf.Max(maxEval, eval);
+                LoadBoardState(depth);
+            }
+            return maxEval;
+
+        } else {
+            int minEval = int.MaxValue;
+            List<Move> possibleNextMoves = GetNextMovesList(chessPiecesInPlay, faction);
+            foreach (Move mv in possibleNextMoves)
+            {
+                SaveBoardState(depth);
+                PerformMove(mv);
+                    int eval = MiniMax(chessPiecesInPlay, depth - 1, ChessPieceFaction.White);
+                    minEval = Mathf.Min(minEval, eval);
+                LoadBoardState(depth);
+            }
+            return minEval;
+        }
+    }
+
+/* ====================================== */
 
     private void PlayCPUTurn()
     {
-        // List<Move> possibleMoves = GetPossibleNextMovesConsideringFuture(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.Zombie);
-        List<Move> possibleMoves = PerformMovesRecursivelyAndGetMovesList(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.Zombie);
+        //List<Move> possibleMoves = PerformMovesRecursivelyAndGetMovesList(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.Zombie);
+        List<Move> possibleMoves = MinimaxGetMoveScores(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.Zombie);
+        //Move mv = MinimaxGetBestMove(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.Zombie);
+        if (possibleMoves.Count == 0) {
+            GameOver();
+            return;
+        }         
+
         possibleMoves.Sort((x, y) => y.scoreOfMove.CompareTo(x.scoreOfMove));
         PerformMove(possibleMoves[0]);
 
         // end turn
+        if (GetNextMovesList(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.White).Count == 0) 
+            GameOver();
         _currentGameState = GameStates.SelectChessPieceToMove;
     }
 
@@ -621,14 +773,31 @@ public class GameController : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.E))
         {
+            Debug.Log(EvaluateBoardForFaction(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.White));
+            Debug.Log(EvaluateBoardForFaction(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.Zombie));
+        }
+
+        if (Input.GetKeyDown(KeyCode.F))
+        {
             _ui.DisplayMoveScores(PerformMovesRecursivelyAndGetMovesList(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.Zombie));
         }
 
-
         if (Input.GetKeyDown(KeyCode.T))
         {
-            Debug.Log(EvaluateBoard(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.White));
+            Debug.Log(EvaluateBoardForFaction(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.White));
         }
+
+        if (Input.GetKeyDown(KeyCode.W))
+        {
+            _ui.DisplayMoveScores(MinimaxGetMoveScores(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.White));
+        }
+
+        if (Input.GetKeyDown(KeyCode.S))
+        {
+            _ui.DisplayMoveScores(MinimaxGetMoveScores(_currentBoardState.chessPiecesInPlay, ChessPieceFaction.Zombie));
+        }
+
+
 
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
